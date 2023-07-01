@@ -1,0 +1,4 @@
+config.env
+**/config.json
+Pipfile.lock
+**/__pycache__

@@ -1,0 +1,4 @@
+{
+  "contest_id": "Type: Number. This is the ID at the end of the URL of the tournament management panel; NOT to be confused with the tournament ID",
+  "discord_server_id": "Type: Number. Enable Developer mode on Discord and right click a server to `Copy Server ID`"
+}
