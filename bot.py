@@ -41,7 +41,6 @@ bot.remove_command('help')
 @bot.event
 async def on_ready():
     print(f"{bot.user} is now online.")
-    
 
 # bot commands (non-slash; only for the admin/owner)
 @bot.command(name='sync_local', hidden=True)
@@ -56,7 +55,7 @@ async def sync_local(ctx):
 @commands.is_owner()
 async def sync_global(ctx):
     await bot.tree.sync()
-    await ctx.send(f"Synching command tree for for ALL servers.")
+    await ctx.send(f"Synching command tree for ALL servers.")
 
 @bot.command(name='shutdown', hidden=True)
 @commands.is_owner()

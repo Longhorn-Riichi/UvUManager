@@ -2,17 +2,16 @@
 
 A Discord bot for Longhorn Riichi. Helps record club games (e.g., automaticaly records Mahjong Soul tournament lobby games on the club leaderboard)
 
-# Running the server
+# Running the bot
 
-First, refer to the `_FORMAT` files to make a `config.env` in the root directory and a `config.json` file for each extension.
+1. refer to the `*_FORMAT` files to make a `config.env` in the root directory and a `config.json` file for each extension in [ext/](ext/).
+1. in a Unix shell:
 
-Then, in a Unix shell (so we can run `start.sh`):
+        pipenv install
+        pipenv shell
+        ./start.sh
 
-```
-pipenv install
-pipenv shell
-./start.sh
-```
+If you encounter errors regarding the protocol files, try updating them (e.g., update the tournament manager protocols with [./scripts/update_proto_liqi_admin.sh](./scripts/update_proto_liqi_admin.sh))
 
 # References
 
