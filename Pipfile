@@ -8,6 +8,5 @@ python-dotenv = "*"
 discord-py = "*"
 protobuf_inspector = "*"
 ms_api = "*"
-aiohttp = "*"
 
 [dev-packages]

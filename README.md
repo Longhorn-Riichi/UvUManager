@@ -1,6 +1,6 @@
 # Ronhorn
 
-A Discord bot for Longhorn Riichi. Helps record club games (e.g., automaticaly records Mahjong Soul tournament lobby games on the club leaderboard)
+A bot for Longhorn Riichi. Helps record online club games and provides utilities (e.g., member registration) on the club servers.
 
 # Running the bot
 
@@ -11,7 +11,13 @@ A Discord bot for Longhorn Riichi. Helps record club games (e.g., automaticaly r
         pipenv shell
         ./start.sh
 
-If you encounter errors regarding the protocol files, try updating them (e.g., update the tournament manager protocols with [./scripts/update_proto_liqi_admin.sh](./scripts/update_proto_liqi_admin.sh))
+### recompiling the Mahjong Soul protobuf files
+If you encounter issues with Mahjong Soul protobuf files in the `ms_api` package, try recompiling them with the included `liqi_admin.json`:
+1. [install the latest Protobuf **Compiler** (>=3.20)](https://github.com/protocolbuffers/protobuf/releases)
+1. `cd` into [modules/mahjongsoul/protocol](./modules/mahjongsoul/protocol) and run `./update_proto_liqi_admin.sh`
+
+### updating the Mahjong Soul protocol file
+You can obtain the latest `liqi_admin.json` by extracting the `nested` JS object in the obfuscated `app.xxxx.js` from the tournament manager site like [this](https://github.com/MahjongRepository/mahjong_soul_api/issues/14#issuecomment-1624183351).
 
 # References
 

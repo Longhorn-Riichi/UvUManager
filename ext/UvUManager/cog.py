@@ -4,7 +4,7 @@ from discord import app_commands
 from os.path import join, dirname
 import json
 
-from modules.mahjonsoul.contest_manager import ContestManager
+from modules.mahjongsoul.contest_manager import ContestManager
 
 class UvUManager(commands.Cog):
     def __init__(self, bot):

@@ -11,9 +11,10 @@ MS_HOST = "https://www.maj-soul.com/"
 # MS_MANAGER_WSS_ENDPOINT: `__MJ_DHS_WS__` from https://www.maj-soul.com/dhs/js/config.js
 MS_MANAGER_WSS_ENDPOINT = "wss://gateway-v2.maj-soul.com/contest_ws_gateway"
 MS_USERNAME = os.environ.get("ms_username")
-MS_PASSWORD = os.environ.get("ms_password")\
+MS_PASSWORD = os.environ.get("ms_password")
 
 # TODO: login once but allow managing multiple contests across different cogs?!
+# or maybe login multiple times using the same account...? Ban risk?
 
 class ContestManager():
     def __init__(self, contest_unique_id, discord_server_id):

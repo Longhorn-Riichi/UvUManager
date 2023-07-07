@@ -1,5 +1,7 @@
 #!/bin/bash
-cd $(pip show ms_api | sed -n -e 's/^Location: //p')/ms_tournament
+ms_tournament_path=$(pip show ms_api | sed -n -e 's/^Location: //p')/ms_tournament/
+sudo cp liqi_admin.json $ms_tournament_path
+cd $ms_tournament_path
 python generate_proto_file.py
 protoc --python_out=. protocol_admin.proto
 chmod +x ms-admin-plugin.py
