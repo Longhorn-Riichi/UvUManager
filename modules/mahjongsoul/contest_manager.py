@@ -2,63 +2,71 @@ import os
 import hmac
 import hashlib
 
-from ms_tournament.base import MSRPCChannel
-from ms_tournament.rpc import CustomizedContestManagerApi
-import ms_tournament.protocol_admin_pb2 as pb
+from modules.pymjsoul.channel import MajsoulChannel
+from modules.pymjsoul.proto import liqi_combined_pb2
 
-
-# MS_HOST: URL to the Chinese tournament manager
-MS_HOST = "https://www.maj-soul.com/"
 # MS_MANAGER_WSS_ENDPOINT: `__MJ_DHS_WS__` from https://www.maj-soul.com/dhs/js/config.js
 MS_MANAGER_WSS_ENDPOINT = "wss://gateway-v2.maj-soul.com/contest_ws_gateway"
 MS_USERNAME = os.environ.get("ms_username")
 MS_PASSWORD = os.environ.get("ms_password")
 
-# TODO: login once but allow managing multiple contests across different cogs?!
-# or maybe login multiple times using the same account...? Ban risk?
-
-class ContestManager():
-    def __init__(self, contest_unique_id, discord_server_id):
+class ContestManager(MajsoulChannel):
+    """
+    wraps around the `MajsoulChannel` class to provide additional functionalities for managing ONE specific contest
+    """
+    def __init__(self, contest_unique_id):
         self.contest_unique_id = contest_unique_id
-        self.discord_server_id = discord_server_id
-        self.manager_api = None
-        self.channel = None # TODO: close the channel in clean-up?
+        self.contest = None
+        # TODO: close the channel in clean-up?
+        super().__init__(proto=liqi_combined_pb2, log_messages=False)
 
     async def connect_and_login(self):
         """
-        Connect to the Chinese tournament manager server, then login with username and password environment variables
+        Connect to the Chinese tournament manager server, login with username and password environment variables, and start managing the specified contest.
         """
         # Establish WSS connection
-        
-        self.channel = MSRPCChannel(MS_MANAGER_WSS_ENDPOINT)
-        self.manager_api = CustomizedContestManagerApi(self.channel)
-        await self.channel.connect(MS_HOST)
+        await self.connect(MS_MANAGER_WSS_ENDPOINT)
 
         # Login via username and password
-        req = pb.ReqContestManageLogin()
-        req.account = MS_USERNAME
-        req.password = hmac.new(b"lailai", MS_PASSWORD.encode(), hashlib.sha256).hexdigest()
-        req.gen_access_token = True
-        req.type = 0
-
-        res = await self.manager_api.login_contest_manager(req)
+        res = await self.call(
+            methodName = "loginContestManager",
+            account = MS_USERNAME,
+            password = hmac.new(b"lailai", MS_PASSWORD.encode(), hashlib.sha256).hexdigest(),
+            gen_access_token = True,
+            type = 0
+        )
         if not res.access_token:
-            print(f"Login Error:\n{res}")
-        print(f"Login to tournament manager server succesfull!")
+            print(f"loginContestManager Error; response:\n{res}")
+        print("Login to tournament manager server succesfull!")
 
-    async def load_tournaments_list(self):
-        print("Loading tournament list...")
+        res = await self.call(
+            methodName = 'manageContest',
+            unique_id = self.contest_unique_id
+        )
+        if not res.contest:
+            print(f"manageContest Error; response:\n{res}")
+        self.contest = res.contest
+        print(f"Started managed contest {self.contest.contest_name}!")
 
-        req = pb.ReqCommon()
-        res = await self.manager_api.fetch_related_contest_list(req)
-        tournaments_count = len(res.contests)
-        print(f"found tournaments : {tournaments_count}")
+    async def get_game_uuid(self, nickname):
+        """
+        return the UUID for an ongoing game the specified player is in
+        """
+        res = await self.call('startManageGame')
+        for game in res.games:
+            for player in game.players:
+                if player.nickname == nickname:
+                    return game.game_uuid
+    
+    # TODO: login to Lobby to directly do `fetchGameRecord`
+    async def locate_completed_game(self, game_uuid):
+        """
+        locate and return a completed game's record
+        """
+        res = await self.call('fetchContestGameRecords')
+        for item in res.record_list:
+            if item.record.uuid == game_uuid:
+                return item.record
+        return None
 
 
-        for i in range(0, tournaments_count):
-            print("") 
-            print(f"unique_id: {res.contests[i].unique_id}") 
-            print(f"contest_id: {res.contests[i].contest_id}")
-            print(f"contest_name: {res.contests[i].contest_name}")
-
-        await self.channel.close()

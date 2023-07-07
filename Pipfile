@@ -6,7 +6,8 @@ name = "pypi"
 [packages]
 python-dotenv = "*"
 discord-py = "*"
-protobuf_inspector = "*"
-ms_api = "*"
+protobuf = "*"
+websockets = "*"
+aiohttp = "*"
 
 [dev-packages]

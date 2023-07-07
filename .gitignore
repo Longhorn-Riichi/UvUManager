@@ -1,4 +1,5 @@
 config.env
 **/config.json
+**/node_modules
 Pipfile.lock
 **/__pycache__
