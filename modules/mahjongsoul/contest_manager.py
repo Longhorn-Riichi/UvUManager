@@ -6,6 +6,7 @@ from ms_tournament.base import MSRPCChannel
 from ms_tournament.rpc import CustomizedContestManagerApi
 import ms_tournament.protocol_admin_pb2 as pb
 
+
 # MS_HOST: URL to the Chinese tournament manager
 MS_HOST = "https://www.maj-soul.com/"
 # MS_MANAGER_WSS_ENDPOINT: `__MJ_DHS_WS__` from https://www.maj-soul.com/dhs/js/config.js
@@ -52,6 +53,7 @@ class ContestManager():
         res = await self.manager_api.fetch_related_contest_list(req)
         tournaments_count = len(res.contests)
         print(f"found tournaments : {tournaments_count}")
+
 
         for i in range(0, tournaments_count):
             print("") 

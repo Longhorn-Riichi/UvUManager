@@ -29,11 +29,15 @@
 1. automate getting the latest `liqi_admin.json`
 1. check for maintenance, keep connection and reconnect when necessary
 1. pass instance of google sheets and contest manager to all extensions
+1. separate the eventloop from the `dispatch_msg` method because of... dead lock potential?
 
-## Other TODO
+
+## Other TODO/TOTHINK
 1. Update Maki's server welcome message and the #rules-and-roles channel...
 1. Fix `README.md` for `ms_api`:
     1. "requerements.txt"
     1. `sudo apt install protobuf-compiler` may not work; need to install the latest version manually from [their GitHub](https://github.com/protocolbuffers/protobuf/releases)
     1. reconcile the directory inconsistency in the proto update between the regular version versus the admin version
     1. updating the `.proto` files do not require the `sudo cp` step -- in fact, just supply the update scripts...
+1. the restart command doesn't load the latest `config.env` file??
+1. do we care about preventing two instances of bot running at the same time? Similar discussion [here](https://github.com/serenity-rs/serenity/issues/1054)

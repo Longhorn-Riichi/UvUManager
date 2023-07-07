@@ -13,7 +13,7 @@ A bot for Longhorn Riichi. Helps record online club games and provides utilities
 
 ### recompiling the Mahjong Soul protobuf files
 If you encounter issues with Mahjong Soul protobuf files in the `ms_api` package, try recompiling them with the included `liqi_admin.json`:
-1. [install the latest Protobuf **Compiler** (>=3.20)](https://github.com/protocolbuffers/protobuf/releases)
+1. install the latest Protobuf **Compiler** (>=3.20). `apt` may have an oudated version so you have to get the right binary from [their GitHub](https://github.com/protocolbuffers/protobuf/releases) and put it in `/usr/local/bin`
 1. `cd` into [modules/mahjongsoul/protocol](./modules/mahjongsoul/protocol) and run `./update_proto_liqi_admin.sh`
 
 ### updating the Mahjong Soul protocol file
