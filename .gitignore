@@ -3,3 +3,5 @@ config.env
 **/node_modules
 Pipfile.lock
 **/__pycache__
+**/token.json
+**/credentials.json
