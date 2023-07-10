@@ -16,13 +16,14 @@ class ContestManager(MajsoulChannel):
     """
     def __init__(self, contest_unique_id):
         self.contest_unique_id = contest_unique_id
-        self.contest = None
+        self.contest = None # contest info; `CustomizedContest` protobuf
         # TODO: close the channel in clean-up?
         super().__init__(proto=liqi_combined_pb2, log_messages=False)
 
     async def connect_and_login(self):
         """
         Connect to the Chinese tournament manager server, login with username and password environment variables, and start managing the specified contest.
+        Returns True if all steps succeed; otherwise False.
         """
         # Establish WSS connection
         await self.connect(MS_MANAGER_WSS_ENDPOINT)
@@ -37,6 +38,8 @@ class ContestManager(MajsoulChannel):
         )
         if not res.access_token:
             print(f"loginContestManager Error; response:\n{res}")
+            return False
+        
         print("Login to tournament manager server succesfull!")
 
         res = await self.call(
@@ -45,8 +48,15 @@ class ContestManager(MajsoulChannel):
         )
         if not res.contest:
             print(f"manageContest Error; response:\n{res}")
+            return False
+
         self.contest = res.contest
+
+        # `startManageGame` is needed to start receiving the notifications
+        res = await self.call(methodName = 'startManageGame')
         print(f"Started managed contest {self.contest.contest_name}!")
+        return True
+        
 
     async def get_game_uuid(self, nickname):
         """
@@ -58,7 +68,7 @@ class ContestManager(MajsoulChannel):
                 if player.nickname == nickname:
                     return game.game_uuid
     
-    # TODO: login to Lobby to directly do `fetchGameRecord`
+    # TODO: login to Lobby to directly do `fetchGameRecord`?
     async def locate_completed_game(self, game_uuid):
         """
         locate and return a completed game's record

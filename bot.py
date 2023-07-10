@@ -10,9 +10,9 @@ env_path = join(dirname(__file__), "config.env")
 dotenv.load_dotenv("config.env")
 
 DISCORD_TOKEN = os.environ.get("bot_token")
-EXTENSIONS_FILE = os.environ.get("extensions_file")
 if DISCORD_TOKEN is None:
     raise Exception("Missing bot_token in config.env")
+EXTENSIONS_FILE = os.environ.get("extensions_file")
 
 try:
     with open(EXTENSIONS_FILE, 'r') as f:
