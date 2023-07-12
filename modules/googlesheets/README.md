@@ -1,5 +1,5 @@
-Need to get a credentials.json file from Google Workspaces
+You need to create a Google Project from Google Workspaces. You then need to enable the API and get an OAuth2 token which will be stored as a json file in this folder.
 
-Make sure credentials and tokens are able to made.
+Refer to https://developers.google.com/sheets/api/quickstart/python
 
-Config file in googlesheets currently not being used. Using config.json from UvU Manager. 
+Make sure credentials.json is in this folder and that token.json is able to be made.
