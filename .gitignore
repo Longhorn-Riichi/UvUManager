@@ -1,7 +1,14 @@
+# secrets
 config.env
 **/config.json
-**/node_modules
-Pipfile.lock
-**/__pycache__
 **/token.json
 **/credentials.json
+
+# generated local files
+Pipfile.lock
+**/__pycache__
+
+# may result from installing protobuf-cli with npm
+**/package.json
+**/package-lock.json
+**/node_modules
