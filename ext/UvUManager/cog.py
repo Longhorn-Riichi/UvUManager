@@ -5,6 +5,7 @@ from os.path import join, dirname
 import json
 
 from modules.mahjongsoul.contest_manager import ContestManager
+from modules.googlesheets.sheets_interface import Sheets_Interface
 
 class UvUManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -72,6 +73,12 @@ class UvUManager(commands.Cog):
             response = f'Game concluded for {" | ".join(player_scores_rendered)}'
 
             # TODO: record score to Google Sheets here
+            player_scores_list = [[player_seat_lookup.get(p.seat, (0, "Computer"))[1], p.total_point] for p in record.result.players]
+            flat_list = [[item for sublist in player_scores_list for item in sublist]]
+            spreadsheet_id = self.json_config["spreadsheet_id"]
+            sheet = Sheets_Interface(spreadsheet_id=spreadsheet_id)
+            sheet.append_xl(flat_list)
+            
         else:
             response = f'An unknown game concluded: {msg.game_uuid}'
 

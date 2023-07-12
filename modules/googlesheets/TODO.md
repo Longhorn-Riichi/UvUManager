@@ -1,3 +1,3 @@
-Continue testing module in contest_manager
-Make sure credentials and tokens are able to made in all use cases.
-Pass in spreadsheet id to sheets_interface instead of hardcoding filepath
+Connect with bot test googlesheet
+Create google project with club account
+Check if formula for test registry works on bot test googlesheet
