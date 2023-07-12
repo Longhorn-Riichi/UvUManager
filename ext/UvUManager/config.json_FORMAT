@@ -2,5 +2,5 @@
   "contest_unique_id": "Type: Number. This is the ID at the end of the URL of the tournament management panel; NOT to be confused with the tournament ID",
   "discord_server_id": "Type: Number. Enable Developer mode on Discord and right click a server to `Copy Server ID`",
   "bot_channel_id": "Type: Number. The channel where the bot will send notifications",
-  "spreadsheet_id": "Type: Number. The id of the speradsheet where the scores will be recorded"
+  "spreadsheet_id": "Type: String. The id of the speradsheet where the scores will be recorded"
 }
