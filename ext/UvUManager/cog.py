@@ -1,6 +1,6 @@
 import asyncio
 from discord.ext import commands
-from discord import app_commands
+from discord import app_commands, Interaction
 from os.path import join, dirname
 import json
 
@@ -33,8 +33,15 @@ class UvUManager(commands.Cog):
         await self.manager.subscribe('NotifyContestGameStart', self.on_NotifyContestGameStart)
         await self.manager.subscribe('NotifyContestGameEnd', self.on_NotifyContestGameEnd)
 
+    """
+    =====================================================
+    SLASH COMMANDS
+    =====================================================
+    """
+
     @app_commands.command(name="terminate", description="Terminate the game of the specified player.")
-    async def terminate(self, interaction, nickname: str):
+    @app_commands.describe(nickname="Specify the nickname of a player that's in the game you want to terminate.")
+    async def terminate(self, interaction: Interaction, nickname: str):
         """
         TODO: ensure that it's either the caller terminating their own game or it's the admin terminating any game; allow terminating own game without nickname input -- requires looking up mahjong soul ID
         """
@@ -57,6 +64,41 @@ class UvUManager(commands.Cog):
             content=f"{nickname}'s game has been terminated.",
         )
     
+    @app_commands.command(name="register", description="Register yourself with your Mahjong Soul friend ID.")
+    @app_commands.describe(friend_id="Find your friend ID in the Friends tab; this is separate from your username.")
+    async def register(self, interaction: Interaction, friend_id: int):
+        """
+        here we use Mahjong Soul ID as the unique identifier, since the
+        tournament will be held over Mahjong Soul anyway.
+        """
+        res = await self.manager.call(
+            "searchAccountByEid",
+            eids = [friend_id]
+        )
+
+        if res.search_result:
+            nickname = res.search_result[0].nickname
+            # NOTE: account ID is different from friend ID!!!
+            account_id = res.search_result[0].account_id
+            discord_name = interaction.user.name
+
+            # TODO: record account ID, mahjong soul nickname, and discord name to Google Sheets here
+
+            await interaction.response.send_message(
+                content=f"Mahjong Soul user \"{nickname}\" has been registered with Discord user \"{discord_name}\".",
+            )
+        else:
+            await interaction.response.send_message(
+                content=f"Couldn't find Mahjong Soul account for this friend ID: {friend_id}",
+            )
+
+
+    """
+    =====================================================
+    MAHJONG SOUL API STUFF
+    =====================================================
+    """
+
     async def on_NotifyContestGameStart(self, _, msg):
         nicknames = ' | '.join([p.nickname for p in msg.game_info.players])
         await self.bot_channel.send(f"UvU game started! Players: {nicknames}.")
@@ -80,7 +122,7 @@ class UvUManager(commands.Cog):
 
             # TODO: record score to Google Sheets here
         else:
-            response = f'An unknown game concluded: {msg.game_uuid}'
+            response = f'A game concluded without a record: {msg.game_uuid}'
 
         await self.bot_channel.send(response)
 

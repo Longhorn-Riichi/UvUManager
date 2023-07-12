@@ -96,13 +96,13 @@ async def reload_extension(ctx, extension_name=None):
         
         await ctx.send(f"Reloaded all extensions: {EXTENSIONS}.")
 
-# bot slash commands
+# EXAMPLE bot slash command in `bot.py`
 # note that we could have done `@discord.app_commands.command(...)`
-@bot.tree.command(name="hello", description="responds privately with `Hello [name]!`")
-async def hello(interaction, name: str):
-    await interaction.response.send_message(
-        content=f"Hello {name}!",
-        ephemeral=True
-    )
+# @bot.tree.command(name="hello", description="responds privately with `Hello [name]!`")
+# async def hello(interaction, name: str):
+#     await interaction.response.send_message(
+#         content=f"Hello {name}!",
+#         ephemeral=True
+#     )
 
 bot.run(DISCORD_TOKEN)
