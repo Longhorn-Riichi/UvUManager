@@ -15,6 +15,7 @@ with open(json_config_path, "r") as f:
 CONTEST_UNIQUE_ID = json_config["contest_unique_id"]
 GUILD_ID = json_config["guild_id"]
 BOT_CHANNEL_ID = json_config["bot_channel_id"]
+SPREADSHEET_ID = json_config["spreadsheet_id"]
 
 
 class UvUManager(commands.Cog):
@@ -22,6 +23,7 @@ class UvUManager(commands.Cog):
         self.bot = bot
         self.bot_channel = None # fetched in `self.async_setup()`
         self.manager = ContestManager(CONTEST_UNIQUE_ID)
+        self.sheet = Sheets_Interface(spreadsheet_id=SPREADSHEET_ID)
 
     async def async_setup(self):
         """
@@ -99,6 +101,20 @@ class UvUManager(commands.Cog):
 
             # TODO: record `mahjongsoul_account_id`, `mahjongsoul_nickname`, `discord_name`, and `affiliation.value` to Google Sheets here.
             # NOTE: if a Discord user tries to register again, it should override the existing entry that has the same Discord name.
+            registry_results = self.sheet.read_xl('Registry!A2:A')
+            name_list = [item for sublist in registry_results for item in sublist]
+            registry_list = [[discord_name, mahjongsoul_nickname, mahjongsoul_account_id, affiliation.value]]
+            isNewRecord = True
+
+            for row_num, name in enumerate(name_list, start=2):
+                if(name == discord_name):
+                    sheet_range = "Registry!A" + str(row_num) + ":" + str(row_num)
+                    self.sheet.update_xl(sheet_range, registry_list)
+                    isNewRecord = False
+                    break
+
+            if(isNewRecord):
+                self.sheet.append_xl('Registry', registry_list)
 
             await interaction.response.send_message(
                 content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".",
@@ -142,9 +158,7 @@ class UvUManager(commands.Cog):
             # TODO: record score to Google Sheets here
             player_scores_list = [[player_seat_lookup.get(p.seat, (0, "Computer"))[1], p.total_point] for p in record.result.players]
             flat_list = [[item for sublist in player_scores_list for item in sublist]]
-            # spreadsheet_id = self.json_config["spreadsheet_id"]
-            # sheet = Sheets_Interface(spreadsheet_id=spreadsheet_id)
-            # sheet.append_xl(flat_list)
+            self.sheet.append_xl('Score Dump', flat_list)
             
         else:
             response = f'A game concluded without a record: {msg.game_uuid}'
