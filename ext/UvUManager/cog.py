@@ -165,6 +165,25 @@ class UvUManager(commands.Cog):
 
         await self.bot_channel.send(response)
 
+    def lookup_player(self, interaction: Interaction):
+        discord_name = interaction.user.name
+        registry_results = self.sheet.read_xl('Registry!A2:A')
+        name_list = [item for sublist in registry_results for item in sublist]
+        isMissing = True
+
+        for row_num, name in enumerate(name_list, start=2):
+            if(name == discord_name):
+                sheet_range = "Registry!A" + str(row_num) + ":D" + str(row_num)
+                result = self.sheet.read_xl(sheet_range)
+                resPerson = Person(mjs_account_id=result[0][2], mjs_nickname=result[0][1], discord_name=discord_name, affiliation=result[0][3])
+                return resPerson
+
+        print("Person not found")
+
+        
+
+        
+
 async def setup(bot: commands.Bot):
     instance = UvUManager(bot)
     asyncio.create_task(instance.async_setup())
