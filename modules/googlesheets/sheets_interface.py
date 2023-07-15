@@ -60,7 +60,7 @@ class Sheets_Interface:
         except HttpError as err:
             print(err)
 
-    def write_xl(self, sheet_range, values_list,):
+    def update_xl(self, sheet_range, values_list,):
         value_input_option = "USER_ENTERED"
         value_range_body = {
             'values': values_list

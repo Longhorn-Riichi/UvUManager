@@ -61,7 +61,8 @@ class UvUManager(commands.Cog):
                 "How to start a tournament game:\n"
                 f"1. Tournament Match -> Tournament Lobby -> Enter Tournament ID ({CONTEST_TOURNAMENT_ID}) -> Prepare for match.\n"
                 "2. Create a table with `/create_table` command. Once everyone chose their seat, the game can be started using the `START` button.\n"
-            )
+            ),
+            ephemeral=True
         )
 
     @app_commands.command(name="terminate_any_game", description=f"Terminate the game of the specified player. Only usable by {ADMIN_ROLE}.")
@@ -73,7 +74,7 @@ class UvUManager(commands.Cog):
     @app_commands.command(name="terminate_own_game", description=f"Terminate the game you are currently in. Usable by {PLAYER_ROLE}.")
     @app_commands.checks.has_role(PLAYER_ROLE)
     async def terminate_own_game(self, interaction: Interaction):
-        nickname = self.look_up_player(interaction.user.name)
+        nickname = self.look_up_player(interaction.user.name).mjs_nickname
         await self.manager.terminate_game(nickname, interaction)
     
     @app_commands.command(name="pause_any_game", description=f"Pause the game of the specified player. Only usable by {ADMIN_ROLE}.")
@@ -85,7 +86,7 @@ class UvUManager(commands.Cog):
     @app_commands.command(name="pause_own_game", description=f"Pause the game you are currently in. Usable by {PLAYER_ROLE}.")
     @app_commands.checks.has_role(PLAYER_ROLE)
     async def pause_own_game(self, interaction: Interaction):
-        nickname = self.look_up_player(interaction.user.name)
+        nickname = self.look_up_player(interaction.user.name).mjs_nickname
         await self.manager.pause_game(nickname, interaction)
     
     @app_commands.command(name="resume_any_game", description=f"Resume the paused game of the specified player. Only usable by {ADMIN_ROLE}.")
@@ -97,7 +98,7 @@ class UvUManager(commands.Cog):
     @app_commands.command(name="resume_own_game", description=f"Resume the paused game you were in. Usable by {PLAYER_ROLE}.")
     @app_commands.checks.has_role(PLAYER_ROLE)
     async def resume_own_game(self, interaction: Interaction):
-        nickname = self.look_up_player(interaction.user.name)
+        nickname = self.look_up_player(interaction.user.name).mjs_nickname
         await self.manager.resume_game(nickname, interaction)
 
     @app_commands.command(name="register", description="Register yourself with your Mahjong Soul friend ID.")
@@ -200,7 +201,10 @@ class UvUManager(commands.Cog):
             response = f'Game concluded for {" | ".join(player_scores_rendered)}'
 
             # TODO: record score to Google Sheets here
-            player_scores_list = [[player_seat_lookup.get(p.seat, (0, "Computer"))[1], p.total_point] for p in record.result.players]
+            player_scores_list = [[
+                player_seat_lookup.get(p.seat, (0, "Computer"))[0],
+                p.total_point/1000
+            ] for p in record.result.players]
             flat_list = [[item for sublist in player_scores_list for item in sublist]]
             self.sheet.append_xl('Score Dump', flat_list)
             
@@ -226,7 +230,7 @@ class UvUManager(commands.Cog):
                 sheet_range = "Registry!A" + str(row_num) + ":D" + str(row_num)
                 result = self.sheet.read_xl(sheet_range)
                 values = result[0]
-                return Player(mjs_account_id=values[2], mjs_nickname=values[1], discord_name=discord_name, affiliation=values[3])
+                return Player(mjs_account_id=int(values[2]), mjs_nickname=values[1], discord_name=discord_name, affiliation=values[3])
         
         # No player with given Discord name found; returning None
         return None
