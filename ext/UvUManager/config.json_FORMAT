@@ -7,4 +7,5 @@
   "admin_role": "Type: String. The role name of the tournament admins"
   "team_1": "Type: String. The name of the first team",
   "team_2": "Type: String. The name of the second team"
+  "spreadsheet_id": "Type: String. The id of the speradsheet where the scores will be recorded"
 }

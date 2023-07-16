@@ -7,6 +7,8 @@ import json
 
 from modules.mahjongsoul.contest_manager import ContestManager
 from .table_view import TableView, Player
+from modules.googlesheets.sheets_interface import Sheets_Interface
+
 
 EXTENSION_NAME = "UvUManager" # must be the same as class name...
 
@@ -21,12 +23,15 @@ PLAYER_ROLE = json_config["player_role"]
 ADMIN_ROLE = json_config["admin_role"]
 TEAM_1 = json_config["team_1"]
 TEAM_2 = json_config["team_2"]
+SPREADSHEET_ID = json_config["spreadsheet_id"]
+
 
 class UvUManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot_channel = None # fetched in `self.async_setup()`
         self.manager = ContestManager(CONTEST_UNIQUE_ID)
+        self.sheet = Sheets_Interface(spreadsheet_id=SPREADSHEET_ID)
 
     async def async_setup(self):
         """
@@ -125,6 +130,20 @@ class UvUManager(commands.Cog):
 
             # TODO: record `mahjongsoul_account_id`, `mahjongsoul_nickname`, `discord_name`, and `affiliation.value` to Google Sheets here.
             # NOTE: if a Discord user tries to register again, it should override the existing entry that has the same Discord name.
+            registry_results = self.sheet.read_xl('Registry!A2:A')
+            name_list = [item for sublist in registry_results for item in sublist]
+            registry_list = [[discord_name, mahjongsoul_nickname, mahjongsoul_account_id, affiliation.value]]
+            isNewRecord = True
+
+            for row_num, name in enumerate(name_list, start=2):
+                if(name == discord_name):
+                    sheet_range = "Registry!A" + str(row_num) + ":" + str(row_num)
+                    self.sheet.update_xl(sheet_range, registry_list)
+                    isNewRecord = False
+                    break
+
+            if(isNewRecord):
+                self.sheet.append_xl('Registry', registry_list)
 
             await interaction.response.send_message(
                 content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".",
@@ -181,6 +200,10 @@ class UvUManager(commands.Cog):
             response = f'Game concluded for {" | ".join(player_scores_rendered)}'
 
             # TODO: record score to Google Sheets here
+            player_scores_list = [[player_seat_lookup.get(p.seat, (0, "Computer"))[1], p.total_point] for p in record.result.players]
+            flat_list = [[item for sublist in player_scores_list for item in sublist]]
+            self.sheet.append_xl('Score Dump', flat_list)
+            
         else:
             response = f'A game concluded without a record: {msg.game_uuid}'
 
@@ -193,14 +216,20 @@ class UvUManager(commands.Cog):
     """
 
     def look_up_player(self, discord_name: str) -> Player | None:
-        # TODO: IMPLEMENT with Google Sheets module
-        return Player(
-            mjs_account_id=121519119,
-            mjs_nickname="Hypera",
-            discord_name=discord_name,
-            affiliation=TEAM_1
-        )
-
+        registry_results = self.sheet.read_xl('Registry!A2:A')
+        name_list = [item for sublist in registry_results for item in sublist]
+        isMissing = True
+        
+        # TODO: simplify loops here?
+        for row_num, name in enumerate(name_list, start=2):
+            if(name == discord_name):
+                sheet_range = "Registry!A" + str(row_num) + ":D" + str(row_num)
+                result = self.sheet.read_xl(sheet_range)
+                values = result[0]
+                return Player(mjs_account_id=values[2], mjs_nickname=values[1], discord_name=discord_name, affiliation=values[3])
+        
+        # No player with given Discord name found; returning None
+        return None
 
 async def setup(bot: commands.Bot):
     instance = UvUManager(bot)
