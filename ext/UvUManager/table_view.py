@@ -5,7 +5,7 @@ from modules.mahjongsoul.contest_manager import EAST, SOUTH, WEST, NORTH
 from modules.pymjsoul.channel import GeneralMajsoulError
 
 # the wind indices for TableView.table
-button_labels = ["EAST", "SOUTH", "WEST", "NORTH"]
+button_labels = ["E", "S", "W", "N"]
 TABLE_SIZE = 4 # e.g., 3 for sanma
 default_embed = Embed(description=(
     "East: None\n"
@@ -15,7 +15,8 @@ default_embed = Embed(description=(
 ))
 
 class Player:
-    def __init__(self, mjs_account_id: int, mjs_nickname: str, discord_name: str, affiliation: str):
+    def __init__(self, mjs_account_id: int=0, mjs_nickname: str="AI", discord_name: str="AI", affiliation: str="AI"):
+        # the default values correspond to an AI opponent (not a real player)
         self.mjs_account_id = mjs_account_id
         self.mjs_nickname = mjs_nickname
         self.discord_name = discord_name
@@ -128,7 +129,7 @@ class TableView(ui.View):
         button.disabled = True
         
         await self.update_embed(description=description)
-    
+
     """
     =====================================================
     BUTTONS
@@ -190,11 +191,11 @@ class TableView(ui.View):
                     break
             if not is_sitting_at_table:
                 await interaction.followup.send(
-                    content="You must be sitting at this table to use its START button!",
+                    content="You must be sitting at this table to START!",
                     ephemeral=True)
                 return
 
-            # ensure that the table if filled
+            # ensure that the table is filled
             for player in self.table:
                 if player is None:
                     await interaction.followup.send(
@@ -202,12 +203,13 @@ class TableView(ui.View):
                         ephemeral=True)
                     return
             
-            # ensure that the seating arrangement is valid
+            # cache the table's players
             east_player = self.table[EAST]
             south_player = self.table[SOUTH]
             west_player = self.table[WEST]
             north_player = self.table[NORTH]
             
+            # ensure that the seating arrangement is valid
             if (east_player.affiliation != west_player.affiliation
                 or south_player.affiliation != north_player.affiliation
                 or east_player.affiliation == south_player.affiliation):
@@ -228,14 +230,93 @@ class TableView(ui.View):
                 # raise the error nonetheless
                 raise error
         
-        # game started successfully! Send a response and delete the original message
-        await interaction.followup.send(
-            content="GAME STARTING!",
-            delete_after=3)
-
+        # game started successfully! Delete the original message.
         await self.original_interaction.delete_original_response()
             
-    # @ui.button(label="START_WITH_AI", style=ButtonStyle.green)
-    # async def start_with_ai_button(self, interaction: Interaction, button: ui.Button):
-    # TODO: add a button to start the game with AI
+    @ui.button(label="START WITH AI", style=ButtonStyle.green, row=1)
+    async def start_with_ai_button(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer()
+
+        async with self.table_lock:
+            # ensure the user is a player sitting at the table, which
+            # also ensure that at least one real player is sitting at the table
+            is_sitting_at_table = False
+            for player in self.table:
+                if player is not None and player.discord_name == interaction.user.name:
+                    is_sitting_at_table = True
+                    break
+            if not is_sitting_at_table:
+                await interaction.followup.send(
+                    content="You must be sitting at this table to START WITH AI!",
+                    ephemeral=True)
+                return
+
+            # cache the players and fill the empty seats with AIs
+            # TOTHINK: simplify the logic here?
+            east_player = self.table[EAST]
+            south_player = self.table[SOUTH]
+            west_player = self.table[WEST]
+            north_player = self.table[NORTH]
+
+            if east_player is None:
+                if west_player is not None:
+                    # east is an AI sharing the affiliation of west
+                    east_player = Player(affiliation=west_player.affiliation)
+                else:
+                    # east and west should both be AIs
+                    east_player = Player()
+                    west_player = Player()
+            elif west_player is None:
+                # west is an AI sharing the affiliation of east
+                west_player = Player(affiliation=east_player.affiliation)
+            elif east_player.affiliation != west_player.affiliation:
+                await interaction.followup.send(
+                    content="East and West players are not from the same team!",
+                    ephemeral=True)
+                return
+            
+            if south_player is None:
+                if north_player is not None:
+                    # south is an AI sharing the affiliation of north
+                    south_player = Player(affiliation=north_player.affiliation)
+                else:
+                    # south and north should both be AIs
+                    south_player = Player()
+                    north_player = Player()
+            elif north_player is None:
+                # north is an AI sharing the affiliation of south
+                north_player = Player(affiliation=south_player.affiliation)
+            elif south_player.affiliation != north_player.affiliation:
+                await interaction.followup.send(
+                    content="South and North players are not from the same team!",
+                    ephemeral=True)
+                return
+
+            """
+            ensure that the seating arrangement is valid. The above assignments
+            ensure that opposite seats have the same affiliation; now we just need
+            to ensure that two adjacent players cannot be of the same affiliation.
+            Note that since we have at most 3 AIs, no two adjacent players
+            will have "AI" affiliation, given the above assignments.
+            """
+            if (east_player.affiliation == south_player.affiliation):
+                await interaction.followup.send(
+                    content="2 players from each team must sit opposite each other!",
+                    ephemeral=True)
+                return
+
+            # try to start the game. Tell everyone to prepare for match if failed.
+            try:
+                await self.start_game(account_ids=[
+                    east_player.mjs_account_id,
+                    south_player.mjs_account_id,
+                    west_player.mjs_account_id,
+                    north_player.mjs_account_id])
+            except GeneralMajsoulError as error:
+                await interaction.followup.send(content=f"Failed to start a game. Did every human hit `Prepare for match` on Mahjong Soul?")
+                # raise the error nonetheless
+                raise error
+        
+        # game started successfully! Delete the original message.
+        await self.original_interaction.delete_original_response()
     

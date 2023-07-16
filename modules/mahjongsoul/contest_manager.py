@@ -91,8 +91,7 @@ class ContestManager(MajsoulChannel):
                 await self.reconnect_and_login()
                 return await super().call(methodName, **msgFields)
             else:
-                raise error
-        
+                raise error  
 
     async def get_ongoing_game_uuid(self, nickname):
         """
@@ -168,7 +167,7 @@ class ContestManager(MajsoulChannel):
 
         return f"{nickname}'s paused game has been unpaused."
 
-    async def start_game(self, account_ids: list[int], random_position=False, open_live=True, ai_level=2) -> None:
+    async def start_game(self, account_ids: list[int]=[0, 0, 0, 0], random_position=False, open_live=True, ai_level=1) -> None:
         """
         start a tournament game. `account_ids` is a list of mahjong soul player
         ids, where 0 means adding a computer at the given seat.
@@ -177,8 +176,8 @@ class ContestManager(MajsoulChannel):
         ------------
         account_ids: a list of Mahjong Soul account ids [East, South, West, North]
         random_position: whether to randomize the seats (ignore the ordering in accounts_ids)
-        open_live: TODO: whether to allow live spectating?
-        ai_level: TODO: the level of the AI? What levels are there?
+        open_live: this doesn't seem to make a difference...
+        ai_level: 0 for Auto-Discard, 1 for Easy, 2 for Normal
         """
         playerList = []
         for i in range(len(account_ids)):

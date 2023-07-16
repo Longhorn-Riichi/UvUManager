@@ -28,6 +28,7 @@
 1. note how logging out on browser also logs out the bot (and the bot has to make a new WSS connection; otherwise login results in a `2504 : "ERR_CONTEST_MGR_HAS_LOGINED`)
 
 ## Other TODO/TOTHINK
+1. does `open_live` field of `createContestGame` actually do anything? If so, what??
 1. Update Maki's server welcome message and the #rules-and-roles channel...
 1. Fix `README.md` for `ms_api`:
     1. "requerements.txt"

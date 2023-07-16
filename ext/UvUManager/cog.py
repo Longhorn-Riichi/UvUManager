@@ -30,7 +30,7 @@ class UvUManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot_channel = None # fetched in `self.async_setup()`
-        self.manager = ContestManager(CONTEST_UNIQUE_ID, True)
+        self.manager = ContestManager(CONTEST_UNIQUE_ID)
         self.sheet = Sheets_Interface(spreadsheet_id=SPREADSHEET_ID)
 
     async def async_setup(self):
@@ -203,7 +203,7 @@ class UvUManager(commands.Cog):
     """
 
     async def on_NotifyContestGameStart(self, _, msg):
-        nicknames = " | ".join([p.nickname for p in msg.game_info.players])
+        nicknames = " | ".join([p.nickname or "AI" for p in msg.game_info.players])
         await self.bot_channel.send(f"UvU game started! Players: {nicknames}.")
     
     async def on_NotifyContestGameEnd(self, _, msg):
@@ -218,22 +218,29 @@ class UvUManager(commands.Cog):
         # TODO: just do player look up so affiliation can be included as well
         # TODO: deal with ordering the scores; currently assumes the scores are ordered by
         #       total_point (this algorithm can be shared with manual score entering)
-        # TODO: examine the record when there is a computer!! May re-write whole thing again...
         player_seat_lookup = {a.seat: (a.account_id, a.nickname) for a in record.accounts}
 
         player_scores_rendered = ["Game concluded! Results:"] # to be newline-separated
         google_sheets_row = [] # a list of values for a "Score Dump" row on Google Sheets
+        AI_count = 0
         for p in record.result.players:
             if not p.total_point:
                 # the object has no `total_point` if the player ends up
                 # with 0 points after bonuses...
                 p.total_point = 0
-
+            player_account_id, player_nickname = player_seat_lookup.get(p.seat, (0, "AI"))
+            if player_account_id == 0:
+                AI_count += 1
             player_scores_rendered.append(
-                f"{player_seat_lookup.get(p.seat, (0, 'Computer'))[1]} ({p.part_point_1}) [{p.total_point/1000:+}]")
+                f"{player_nickname} ({p.part_point_1}) [{p.total_point/1000:+}]")
             google_sheets_row.extend((
-                player_seat_lookup.get(p.seat, (0, "Computer"))[0],
+                player_account_id,
                 p.total_point/1000))
+        
+        if AI_count == 1:
+            player_scores_rendered.append("An AI was in this game; remember to edit the score entry on Google Sheets with the respective substituted player's account ID.")
+        elif AI_count > 1:
+            player_scores_rendered.append(f"{AI_count} AIs were in this game; remember to edit the score entry on Google Sheets with {AI_count} respective substituted players' account ID.")
 
         asyncio.create_task(self.bot_channel.send(
             content='\n'.join(player_scores_rendered)))
