@@ -27,8 +27,7 @@ intents = discord.Intents.default()
 intents.message_content = True # necessary for commands to work
 bot = commands.Bot(
     command_prefix='$',
-    intents=intents
-    )
+    intents=intents)
 async def setup_hook():
     # note that extensions should be loaded before the slash commands
     # are synched. Here we ensure that by only allowing manual synching
@@ -103,8 +102,7 @@ async def reload_extension(ctx: commands.Context, extension_name: str=None):
 # async def hello(interaction: Interaction, name: str):
 #     await interaction.response.send_message(
 #         content=f"Hello {name}!",
-#         ephemeral=True
-#     )
+#         ephemeral=True)
 
 # official way to handle all regular command errors
 @bot.event

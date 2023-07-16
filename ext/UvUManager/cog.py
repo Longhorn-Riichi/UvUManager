@@ -63,10 +63,8 @@ class UvUManager(commands.Cog):
                 f"2. On Mahjong Soul: Tournament Match -> Tournament Lobby -> Enter Tournament ID ({CONTEST_TOURNAMENT_ID}) -> Prepare for match.\n"
                 "3. Create a table with `/create_table` command. Once everyone chose their seat, the game can be started using the `START` button.\n"
                 "Helpful commands for when people need to be AFK (do NOT abuse!):\n"
-                "`/terminate_own_game`, `/pause_own_game`, `/unpause_own_game`"
-            ),
-            ephemeral=True
-        )
+                "`/terminate_own_game`, `/pause_own_game`, `/unpause_own_game`"),
+            ephemeral=True)
 
     @app_commands.command(name="terminate_any_game", description=f"Terminate the game of the specified player. Only usable by {ADMIN_ROLE}.")
     @app_commands.describe(nickname="Specify the nickname of a player that's in the game you want to terminate.")
@@ -133,8 +131,7 @@ class UvUManager(commands.Cog):
     ])
     @app_commands.describe(
         friend_id="Find your friend ID in the Friends tab; this is separate from your username.",
-        affiliation=f"Which club you represent: {TEAM_1}? {TEAM_2}?"
-    )
+        affiliation=f"Which club you represent: {TEAM_1}? {TEAM_2}?")
     async def register(self, interaction: Interaction, friend_id: int, affiliation: app_commands.Choice[str]):
         """
         here we use Mahjong Soul ID as the unique identifier, since the
@@ -144,15 +141,12 @@ class UvUManager(commands.Cog):
 
         res = await self.manager.call(
             "searchAccountByEid",
-            eids = [friend_id]
-        )
+            eids = [friend_id])
 
         # if no account found, then `res` won't have a `search_result` field, but it won't
         # have an `error`` field, either (i.e., it's not an error!).
         if not res.search_result:
-            await interaction.followup.send(
-                content=f"Couldn't find Mahjong Soul account for this friend ID: {friend_id}"
-            )
+            await interaction.followup.send(content=f"Couldn't find Mahjong Soul account for this friend ID: {friend_id}")
             return
 
         mahjongsoul_nickname = res.search_result[0].nickname
@@ -171,15 +165,13 @@ class UvUManager(commands.Cog):
             sheet_range = "Registry!A" + str(absolute_row_num) + ":D" + str(absolute_row_num)
             self.sheet.update_xl(sheet_range, [registry_values])
             await interaction.followup.send(
-                content=f"\"{discord_name}\" from {affiliation.value} has updated their registry with Mahjong Soul account \"{mahjongsoul_nickname}\"."
-            )
+                content=f"\"{discord_name}\" from {affiliation.value} has updated their registry with Mahjong Soul account \"{mahjongsoul_nickname}\".")
             return
 
         self.sheet.append_xl("Registry", [registry_values])
 
         await interaction.followup.send(
-            content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\"."
-        )
+            content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".")
             
 
     @app_commands.command(name="create_table", description="Create a table prompt where players self-assign seats before starting a game.")
@@ -201,8 +193,7 @@ class UvUManager(commands.Cog):
         view.interactive_message = await interaction.response.send_message(
             content="Choose a seat!",
             embed=default_embed,
-            view=view
-        )
+            view=view)
         
 
     """
@@ -239,16 +230,13 @@ class UvUManager(commands.Cog):
                 p.total_point = 0
 
             player_scores_rendered.append(
-                f"{player_seat_lookup.get(p.seat, (0, 'Computer'))[1]} ({p.part_point_1}) [{p.total_point/1000:+}]"
-            )
+                f"{player_seat_lookup.get(p.seat, (0, 'Computer'))[1]} ({p.part_point_1}) [{p.total_point/1000:+}]")
             google_sheets_row.extend((
                 player_seat_lookup.get(p.seat, (0, "Computer"))[0],
-                p.total_point/1000
-            ))
+                p.total_point/1000))
 
         asyncio.create_task(self.bot_channel.send(
-            content='\n'.join(player_scores_rendered)
-        ))
+            content='\n'.join(player_scores_rendered)))
 
         self.sheet.append_xl("Score Dump", [google_sheets_row])
 

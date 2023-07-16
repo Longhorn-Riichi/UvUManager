@@ -54,15 +54,13 @@ class ContestManager(MajsoulChannel):
             methodName = "loginContestManager",
             account = MS_USERNAME,
             password = hmac.new(b"lailai", MS_PASSWORD.encode(), hashlib.sha256).hexdigest(),
-            type = 0
-        )
+            type = 0)
     
         print(f"`loginContestManager` with {MS_USERNAME} successful!")
     
         res = await super().call(
             methodName = 'manageContest',
-            unique_id = self.contest_unique_id
-        )
+            unique_id = self.contest_unique_id)
 
         self.contest = res.contest
 
@@ -136,8 +134,7 @@ class ContestManager(MajsoulChannel):
         await self.call(
             'terminateGame',
             serviceName='CustomizedContestManagerApi',
-            uuid=game_uuid
-        )
+            uuid=game_uuid)
 
         return f"{nickname}'s game has been terminated."
 
@@ -152,8 +149,7 @@ class ContestManager(MajsoulChannel):
         
         await self.call(
             'pauseGame',
-            uuid=game_uuid
-        )
+            uuid=game_uuid)
 
         return f"{nickname}'s game has been paused."
     
@@ -168,8 +164,7 @@ class ContestManager(MajsoulChannel):
         
         await self.call(
             'resumeGame',
-            uuid=game_uuid
-        )
+            uuid=game_uuid)
 
         return f"{nickname}'s paused game has been unpaused."
 
@@ -190,8 +185,7 @@ class ContestManager(MajsoulChannel):
             account_id = account_ids[i]
             playerList.append(self.proto.ReqCreateContestGame.Slot(
                 account_id=account_id,
-                seat=i
-            ))
+                seat=i))
             # if it's a real player, call `lockGamePlayer`
             if account_id > 0:
                 await self.call('lockGamePlayer', account_id=account_id)
@@ -200,5 +194,4 @@ class ContestManager(MajsoulChannel):
             slots = playerList,
             random_position=random_position,
             open_live=open_live,
-            ai_level=ai_level
-        )
+            ai_level=ai_level)

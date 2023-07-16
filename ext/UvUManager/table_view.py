@@ -94,14 +94,12 @@ class TableView(ui.View):
             f"East: {self.table[EAST]}\n"
             f"South: {self.table[SOUTH]}\n"
             f"West: {self.table[WEST]}\n"
-            f"North: {self.table[NORTH]}"
-        )
+            f"North: {self.table[NORTH]}")
     
     async def update_embed(self, description):
         await self.original_interaction.edit_original_response(
             embed=Embed(description=description),
-            view=self
-        )
+            view=self)
 
     async def sit(self, interaction: Interaction, button: ui.Button, seat: int):
         await interaction.response.defer()
@@ -120,8 +118,7 @@ class TableView(ui.View):
                     # player info doesn't exist
                     await interaction.followup.send(
                         content="You are not a registered player. Register with `/register`",
-                        ephemeral=True
-                    )
+                        ephemeral=True)
                     return
         
             self.table[seat] = player
@@ -174,8 +171,7 @@ class TableView(ui.View):
         if interaction.user.name != self.original_interaction.user.name:
             await interaction.response.send_message(
                 content="Only the table creator may cancel this table",
-                ephemeral=True
-            )
+                ephemeral=True)
             return
         
         await interaction.response.defer()
@@ -183,23 +179,30 @@ class TableView(ui.View):
 
     @ui.button(label="START", style=ButtonStyle.green, row=1)
     async def start_button(self, interaction: Interaction, button: ui.Button):
-        """
-        First, check if the seating arrangement is valid.
-        If valid, try to start a game via Contest Manager
-        If the game is started correctly, call the clean-up function,
-        otherwise respond with an error message
+        await interaction.response.defer()
 
-        TODO: make sure that only players sitting at table can use this button
-        """
         async with self.table_lock:
+            # ensure the user is a player sitting at the table
+            is_sitting_at_table = False
+            for player in self.table:
+                if player is not None and player.discord_name == interaction.user.name:
+                    is_sitting_at_table = True
+                    break
+            if not is_sitting_at_table:
+                await interaction.followup.send(
+                    content="You must be sitting at this table to use its START button!",
+                    ephemeral=True)
+                return
+
+            # ensure that the table if filled
             for player in self.table:
                 if player is None:
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         content="Not all seats are filled!",
-                        ephemeral=True
-                    )
+                        ephemeral=True)
                     return
-                
+            
+            # ensure that the seating arrangement is valid
             east_player = self.table[EAST]
             south_player = self.table[SOUTH]
             west_player = self.table[WEST]
@@ -208,33 +211,28 @@ class TableView(ui.View):
             if (east_player.affiliation != west_player.affiliation
                 or south_player.affiliation != north_player.affiliation
                 or east_player.affiliation == south_player.affiliation):
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     content="2 players from each team must sit opposite each other!",
-                    ephemeral=True
-                )
+                    ephemeral=True)
                 return
-        
+
+            # try to start the game. Tell everyone to prepare for match if failed.
             try:
                 await self.start_game([
                     east_player.mjs_account_id,
                     south_player.mjs_account_id,
                     west_player.mjs_account_id,
-                    north_player.mjs_account_id
-                ])
+                    north_player.mjs_account_id])
             except GeneralMajsoulError as error:
-                await interaction.response.send_message(
-                    content=f"Failed to start a game. Did everyone hit `Prepare for match` on Mahjong Soul?"
-                )
+                await interaction.followup.send(content=f"Failed to start a game. Did everyone hit `Prepare for match` on Mahjong Soul?")
                 # raise the error nonetheless
                 raise error
         
-        await interaction.response.send_message(
+        # game started successfully! Send a response and delete the original message
+        await interaction.followup.send(
             content="GAME STARTING!",
-            delete_after=3
-        )
-        
-        # delete after sending the GAME STARTING message. Otherwise would
-        # result in an error if the table creator used the `START` button.
+            delete_after=3)
+
         await self.original_interaction.delete_original_response()
             
     # @ui.button(label="START_WITH_AI", style=ButtonStyle.green)
