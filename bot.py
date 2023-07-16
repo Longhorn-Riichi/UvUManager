@@ -120,6 +120,16 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
 async def on_app_command_error(interaction: Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.errors.MissingRole):
         await interaction.response.send_message(f"You do not have the required role ({error.missing_role}) to use this command.", ephemeral=True)
+    elif isinstance(error, app_commands.errors.CommandInvokeError):
+        # here it's especially important so the bot isn't stuck "thinking" (e.g., from `defer()`)
+        # meanwhile, the user also gets an idea of what they might have done wrong.
+        if interaction.response.is_done():
+            await interaction.followup.send(f"The command failed: {error.original}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"The command failed: {error}", ephemeral=True)
+        
+        # raise the error nonetheless to help with debugging
+        raise error
     else:
         raise error
 bot.tree.on_error = on_app_command_error

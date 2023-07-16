@@ -22,7 +22,8 @@ class ResponseTimeoutError(Exception):
         super().__init__(self.message)
 
 class GeneralMajsoulError(Exception):
-    def __init__(self, errorCode, message):
+    def __init__(self, errorCode: int, message: str):
+        self.errorCode = errorCode
         self.message = f"ERROR CODE {errorCode}: {message}"
         super().__init__(self.message)
 

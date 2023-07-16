@@ -2,10 +2,17 @@ from typing import Callable
 from discord import ui, ButtonStyle, Interaction, Embed
 import asyncio
 from modules.mahjongsoul.contest_manager import EAST, SOUTH, WEST, NORTH
+from modules.pymjsoul.channel import GeneralMajsoulError
 
 # the wind indices for TableView.table
 button_labels = ["EAST", "SOUTH", "WEST", "NORTH"]
 TABLE_SIZE = 4 # e.g., 3 for sanma
+default_embed = Embed(description=(
+    "East: None\n"
+    "South: None\n"
+    "West: None\n"
+    "North: None"
+))
 
 class Player:
     def __init__(self, mjs_account_id: int, mjs_nickname: str, discord_name: str, affiliation: str):
@@ -33,9 +40,8 @@ class TableView(ui.View):
     same seating arrangement as their previous game or that a different
     team starts East compared with their previous game.
     """
-    def __init__(self, creator_name: str, look_up_player: Callable[[str], Player], start_game: Callable[[int, int, int, int], str | None], original_interaction: Interaction, timeout: float=300):
+    def __init__(self, look_up_player: Callable[[str], Player], start_game: Callable[[int, int, int, int], None], original_interaction: Interaction, timeout: float=300):
         super().__init__(timeout=timeout)
-        self.creator_name = creator_name
         self.look_up_player = look_up_player
         self.start_game = start_game
 
@@ -44,7 +50,16 @@ class TableView(ui.View):
 
         self.table: list[Player] = [None]*TABLE_SIZE
         self.table_lock = asyncio.Lock()
-    
+
+    async def on_timeout(self):
+        await self.original_interaction.delete_original_response()
+
+    """
+    =====================================================
+    HELPER FUNCTIONS
+    =====================================================
+    """
+
     def set_button_disabled(self, button_label: str, disabled: bool):
         """
         find and flip a button given a button label
@@ -89,6 +104,7 @@ class TableView(ui.View):
         )
 
     async def sit(self, interaction: Interaction, button: ui.Button, seat: int):
+        await interaction.response.defer()
         discord_name = interaction.user.name
         async with self.table_lock:
             if self.table[seat] is not None:
@@ -102,7 +118,7 @@ class TableView(ui.View):
                 player = self.look_up_player(discord_name)
                 if player is None:
                     # player info doesn't exist
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         content="You are not a registered player. Register with `/register`",
                         ephemeral=True
                     )
@@ -115,8 +131,13 @@ class TableView(ui.View):
         button.disabled = True
         
         await self.update_embed(description=description)
-        await interaction.response.defer()
     
+    """
+    =====================================================
+    BUTTONS
+    =====================================================
+    """
+
     @ui.button(label=button_labels[EAST], style=ButtonStyle.blurple, row=0)
     async def east_button(self, interaction: Interaction, button: ui.Button):
         await self.sit(interaction, button, EAST)
@@ -135,12 +156,14 @@ class TableView(ui.View):
 
     @ui.button(label="GET UP", style=ButtonStyle.gray, row=1)
     async def get_up_button(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer()
         async with self.table_lock:
-            self.get_up_if_possible(interaction.user.name)
+            player = self.get_up_if_possible(interaction.user.name)
+            if player is None:
+                return
             description = self.generate_table_description()
         
         await self.update_embed(description=description)
-        await interaction.response.defer()
     
     @ui.button(label="CANCEL", style=ButtonStyle.red, row=1)
     async def cancel_button(self, interaction: Interaction, button: ui.Button):
@@ -148,15 +171,15 @@ class TableView(ui.View):
         can only be used by the creator. Delete the message.
         (admin should be able to delete the message without using this button)
         """
-        if interaction.user.name != self.creator_name:
+        if interaction.user.name != self.original_interaction.user.name:
             await interaction.response.send_message(
                 content="Only the table creator may cancel this table",
                 ephemeral=True
             )
             return
         
-        await self.original_interaction.delete_original_response()
         await interaction.response.defer()
+        await self.original_interaction.delete_original_response()
 
     @ui.button(label="START", style=ButtonStyle.green, row=1)
     async def start_button(self, interaction: Interaction, button: ui.Button):
@@ -191,26 +214,30 @@ class TableView(ui.View):
                 )
                 return
         
-            error_message = await self.start_game([
-                east_player.mjs_account_id,
-                south_player.mjs_account_id,
-                west_player.mjs_account_id,
-                north_player.mjs_account_id
-            ])
-
-            if error_message is not None:
+            try:
+                await self.start_game([
+                    east_player.mjs_account_id,
+                    south_player.mjs_account_id,
+                    west_player.mjs_account_id,
+                    north_player.mjs_account_id
+                ])
+            except GeneralMajsoulError as error:
                 await interaction.response.send_message(
-                    content=f"Failed to start a game: {error_message}",
+                    content=f"Failed to start a game. Did everyone hit `Prepare for match` on Mahjong Soul?"
                 )
-                return
-            
-        await self.original_interaction.delete_original_response()
+                # raise the error nonetheless
+                raise error
         
         await interaction.response.send_message(
             content="GAME STARTING!",
             delete_after=3
         )
+        
+        # delete after sending the GAME STARTING message. Otherwise would
+        # result in an error if the table creator used the `START` button.
+        await self.original_interaction.delete_original_response()
             
     # @ui.button(label="START_WITH_AI", style=ButtonStyle.green)
     # async def start_with_ai_button(self, interaction: Interaction, button: ui.Button):
     # TODO: add a button to start the game with AI
+    
