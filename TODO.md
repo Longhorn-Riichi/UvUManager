@@ -25,6 +25,7 @@
 1. automate getting the latest `.json` file.
 1. major task: generate functions for `client.py` like what [ms-admin-plugin.py](https://github.com/MahjongRepository/mahjong_soul_api/blob/master/ms_tournament/ms-admin-plugin.py) does as a `protoc` plugin... My old protobuf update script for `mahjong_soul_api` is available [here](https://github.com/peter1357908/Ronhorn/blob/578bbe39ba90bd7ecde4d6997e1337e53eab1aa6/modules/mahjongsoul/protocol/update_proto_liqi_admin.sh)
 1. note in the documentation how this module raises Exceptions if the response contains an Error object. (I already motified the module so GeneralMajsoulError has a field `errorCode`)
+1. note how logging out on browser also logs out the bot (and the bot has to make a new WSS connection; otherwise login results in a `2504 : "ERR_CONTEST_MGR_HAS_LOGINED`)
 
 ## Other TODO/TOTHINK
 1. Update Maki's server welcome message and the #rules-and-roles channel...

@@ -49,6 +49,37 @@ class MajsoulChannel():
         self.Notifications = asyncio.Queue()
         self.log_messages = log_messages
 
+        self.sustain_task: asyncio.Task = None
+        self.listen_task: asyncio.Task = None
+        self.eventloop_task: asyncio.Task = None
+    
+    async def clean_up(self):
+        """
+        close the connection, kill the asyncio tasks and reset the variables
+        (except self.uri and the subscriptions).
+        This prepares for starting another connection with `self.connect()`
+        while keeping the same subscriptions.
+        """
+        self.sustain_task.cancel()
+        self.listen_task.cancel()
+        self.eventloop_task.cancel()
+
+        self.index = 0
+        self.requests = {}
+        self.responses = {}
+        
+        self.MostRecentNotify = None
+        self.Notifications = asyncio.Queue()
+
+        await self.close() # lock?
+
+    async def reconnect(self):
+        """
+        calls `self.clean_up()` and reconnect with the existing `self.uri`
+        """
+        await self.clean_up()
+        await self.connect(self.uri)
+
     async def connect(self, uri):
         self.uri = uri
 
@@ -56,17 +87,20 @@ class MajsoulChannel():
 
         print(f'Connected to {self.uri}')
 
-        asyncio.create_task(self.sustain())
-        asyncio.create_task(self.listen())
-        asyncio.create_task(self.eventloop())
+        self.sustain_task = asyncio.create_task(self.sustain())
+        self.listen_task = asyncio.create_task(self.listen())
+        self.eventloop_task = asyncio.create_task(self.eventloop())
 
     async def sustain(self, ping_interval=3):
         '''
         Looping coroutine that keeps the connection to the server alive.
         '''
-        while self.websocket.open:
-            await self.websocket.ping()
-            await asyncio.sleep(ping_interval)
+        try:
+            while self.websocket.open:
+                await self.websocket.ping()
+                await asyncio.sleep(ping_interval)
+        except asyncio.CancelledError:
+            print("`sustain` task cancelled")
 
     async def subscribe(self, name, cb):
         async with self._subscriptions_lock:
@@ -77,58 +111,64 @@ class MajsoulChannel():
 
     async def eventloop(self):
         ''' Event loop running as a separate coroutine to listen(), otherwise we can run into deadlock. '''
-        while True:
-            name, msg = await self.Notifications.get()
-            if name in self._subscriptions:
-                for sub_callback in self._subscriptions[name]:
-                    await sub_callback(name, msg)
-            else:
-                print(f"Notification for {name} had no subscribers.")
+        try:
+            while True:
+                name, msg = await self.Notifications.get()
+                if name in self._subscriptions:
+                    for sub_callback in self._subscriptions[name]:
+                        await sub_callback(name, msg)
+                else:
+                    print(f"Notification for {name} had no subscribers.")
+        except asyncio.CancelledError:
+            print("`eventloop` task cancelled")
 
     async def listen(self):
         '''
         Looping coroutine that receives messages from the server.
         '''
-        async for message in self.websocket:
-            msgType = int.from_bytes(message[0:1], 'little')
+        try:
+            async for message in self.websocket:
+                msgType = int.from_bytes(message[0:1], 'little')
 
-            if msgType == MSG_TYPE_NOTIFY:
-                msgPayload = message[1:]
-                name, data = self.unwrap(msgPayload)
-
-                name = name.strip(f'.{self.proto.DESCRIPTOR.package}')
-
-                try:
-                    msgDescriptor = self.message_lookup(name)
-                except KeyError as e:
-                    print(e)
-                    continue
-
-                msgClass = pb.reflection.MakeClass(msgDescriptor)
-
-                msg = msgClass()
-                msg.ParseFromString(data)
-
-                # Duplicate notifications can be received next to each other.
-                # Never process the same message twice.
-                if (name, msg) != self.MostRecentNotify:
-                    print("Notification received.")
-                    print(name)
-                    print(msg)
-                    self.MostRecentNotify = (name, msg)
-
-                    await self.Notifications.put((name, msg))
-            elif msgType == MSG_TYPE_RESPONSE:
-                print("Response received.")
-                msgIndex = int.from_bytes(message[1:3], 'little')
-                msgPayload = message[3:]
-
-                if msgIndex in self.requests:
+                if msgType == MSG_TYPE_NOTIFY:
+                    msgPayload = message[1:]
                     name, data = self.unwrap(msgPayload)
-                    self.responses[msgIndex] = data
 
-                    resEvent = self.requests[msgIndex]
-                    resEvent.set()
+                    name = name.strip(f'.{self.proto.DESCRIPTOR.package}')
+
+                    try:
+                        msgDescriptor = self.message_lookup(name)
+                    except KeyError as e:
+                        print(e)
+                        continue
+
+                    msgClass = pb.reflection.MakeClass(msgDescriptor)
+
+                    msg = msgClass()
+                    msg.ParseFromString(data)
+
+                    # Duplicate notifications can be received next to each other.
+                    # Never process the same message twice.
+                    if (name, msg) != self.MostRecentNotify:
+                        print("Notification received.")
+                        print(name)
+                        print(msg)
+                        self.MostRecentNotify = (name, msg)
+
+                        await self.Notifications.put((name, msg))
+                elif msgType == MSG_TYPE_RESPONSE:
+                    print("Response received.")
+                    msgIndex = int.from_bytes(message[1:3], 'little')
+                    msgPayload = message[3:]
+
+                    if msgIndex in self.requests:
+                        name, data = self.unwrap(msgPayload)
+                        self.responses[msgIndex] = data
+
+                        resEvent = self.requests[msgIndex]
+                        resEvent.set()
+        except asyncio.CancelledError:
+            print("`listen` task cancelled")
 
     async def close(self):
         await self.websocket.close()

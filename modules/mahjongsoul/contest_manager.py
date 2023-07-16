@@ -22,7 +22,6 @@ class ContestManager(MajsoulChannel):
     def __init__(self, contest_unique_id, log_messages=False):
         self.contest_unique_id = contest_unique_id
         self.contest = None # contest info; `CustomizedContest` protobuf
-        # TODO: close the channel in clean-up?
         super().__init__(proto=liqi_combined_pb2, log_messages=log_messages)
 
     async def connect_and_login(self):
@@ -33,6 +32,15 @@ class ContestManager(MajsoulChannel):
         # Establish WSS connection
         await self.connect(MS_MANAGER_WSS_ENDPOINT)
         # Login, manage specific contest, and start listening to notifications
+        await self.login_and_start_listening()
+    
+    async def reconnect_and_login(self):
+        """
+        login to Mahjong Soul again, keeping the existing subscriptions.
+        Needs to make a new connection with `self.reconnect()` because trying to
+        log in through the same connection results in `2504 : "ERR_CONTEST_MGR_HAS_LOGINED"`
+        """
+        await self.reconnect()
         await self.login_and_start_listening()
 
     async def login_and_start_listening(self):
@@ -49,7 +57,7 @@ class ContestManager(MajsoulChannel):
             type = 0
         )
     
-        print(f"`loginContestManager` with {MS_USERNAME} succesful!")
+        print(f"`loginContestManager` with {MS_USERNAME} successful!")
     
         res = await super().call(
             methodName = 'manageContest',
@@ -58,7 +66,7 @@ class ContestManager(MajsoulChannel):
 
         self.contest = res.contest
 
-        print(f"`manageContest` for {self.contest.contest_name} succesful!")
+        print(f"`manageContest` for {self.contest.contest_name} successful!")
 
         # `startManageGame` is needed to start receiving the notifications
         await super().call(methodName = 'startManageGame')
@@ -76,13 +84,13 @@ class ContestManager(MajsoulChannel):
             if error.errorCode == 2505:
                 """
                 "ERR_CONTEST_MGR_NOT_LOGIN"
-                In this case, try logging in and retrying the call.
+                In this case, try logging BACK in and retrying the call.
                 Do nothing if the retry still failed. (we do this because
                 the account may have been logged out elsewhere unintentionally,
                 e.g., from the web version of the tournament manager)
                 """
                 print("Received `ERR_CONTEST_MGR_NOT_LOGIN`; now trying to log in again and resend the previous request.")
-                await self.login_and_start_listening()
+                await self.reconnect_and_login()
                 return await super().call(methodName, **msgFields)
             else:
                 raise error
