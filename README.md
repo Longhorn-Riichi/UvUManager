@@ -10,6 +10,7 @@ A bot for Longhorn Riichi. Helps record online club games and provides utilities
         pipenv install
         pipenv shell
         ./start.sh
+1. in the respective servers: run `$sync_local` to sync the slash commands for that server.
 
 # References
 

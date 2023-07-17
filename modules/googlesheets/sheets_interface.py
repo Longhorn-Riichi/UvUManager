@@ -42,28 +42,51 @@ class Sheets_Interface:
         self.spreadsheet_id = spreadsheet_id
         self.service = build('sheets', 'v4', credentials=self.creds)
 
-    def read_xl(self, sheet_range):
+    def read_xl(self, sheet_range: str) -> list[list[str]] | None:
+        """
+        the output will be a list of rows, each row a list of strings,
+        even if the actual value on Google Sheets is of another type (e.g., int)
+        """
         try:
             sheet = self.service.spreadsheets()
             result = sheet.values().get(spreadsheetId=self.spreadsheet_id, range=sheet_range).execute()
 
-            # result is type dict with range, majorDimension, and values as keys
-            # values is of type list, returns empty list if values key not found
-            values = result.get('values', [])
-
-            if not values:
-                print('No data found.')
-                return
-
-            return values
-        
+            """
+            result is a `dict` with `range`, `majorDimension` as guaranteed keys
+            result contains `values` key if there are values in the specified
+            `sheet_range`; otherwise the key does not exist.
+            value of `values` is a list of lists if `values` exists.
+            """
+            return result.get('values')
         except HttpError as err:
             print(err)
+            return None
+    
+    def find_relative_row_xl(self, sheet_range: str, target: str) -> int:
+        """
+        Try to look through the specified range to find the target text.
+        Returns -1 if the `read_xl()` failed or if the target is not found.
+        Otherwise, return an index relative to the first row in the specified
+        range. (0 means it's in the first row)
+        """
+        rows = self.read_xl(sheet_range)
 
-    def write_xl(self, sheet_range, values_list,):
+        if rows is not None:
+            for i in range(len(rows)):
+                for value in rows[i]:
+                    if value == target:
+                        return i
+        
+        return -1
+
+    def update_xl(self, sheet_range: str, rows: list[list]):
+        """
+        the `rows` input is a list of rows, each a list of values. The values
+        do not have to be strings.
+        """
         value_input_option = "USER_ENTERED"
         value_range_body = {
-            'values': values_list
+            'values': rows
         }
 
         try:
@@ -73,10 +96,14 @@ class Sheets_Interface:
         except HttpError as err:
             print(err)
 
-    def append_xl(self, sheet_range, values_list):
+    def append_xl(self, sheet_range: str, rows: list[list]):
+        """
+        the `rows` input is a list of rows, each a list of values. The values
+        do not have to be strings.
+        """
         value_input_option = "USER_ENTERED"
         value_range_body = {
-            'values': values_list
+            'values': rows
         }
 
         try:
