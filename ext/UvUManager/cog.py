@@ -214,6 +214,7 @@ class UvUManager(commands.Cog):
 
         if record is None:
             await self.bot_channel.send("A game concluded without a record (possibly due to being terminated early).")
+            return
 
         # TODO: just do player look up so affiliation can be included as well
         # TODO: deal with ordering the scores; currently assumes the scores are ordered by
