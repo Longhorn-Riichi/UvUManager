@@ -188,7 +188,7 @@ class ContestManager(MajsoulChannel):
             # if it's a real player, call `lockGamePlayer`
             if account_id > 0:
                 await self.call('lockGamePlayer', account_id=account_id)
-        res = await self.call(
+        await self.call(
             methodName='createContestGame',
             slots = playerList,
             random_position=random_position,

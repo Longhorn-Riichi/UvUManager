@@ -15,6 +15,6 @@ A bot for Longhorn Riichi. Helps record online club games and provides utilities
 # References
 
 - [Riichi Nomi's Ronnie bot](https://github.com/RiichiNomi/ronnie)
-- [mjsou.py](https://github.com/RiichiNomi/mjsoul.py)
+- [mjsoul.py](https://github.com/RiichiNomi/mjsoul.py)
 - [ms_api: Mahjong Soul API in Python](https://github.com/MahjongRepository/mahjong_soul_api/tree/master)
 
