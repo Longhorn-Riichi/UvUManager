@@ -4,7 +4,6 @@ import hashlib
 
 from modules.pymjsoul.channel import MajsoulChannel, GeneralMajsoulError
 from modules.pymjsoul.proto import liqi_combined_pb2
-from discord import Interaction
 
 # MS_MANAGER_WSS_ENDPOINT: `__MJ_DHS_WS__` from https://www.maj-soul.com/dhs/js/config.js
 MS_MANAGER_WSS_ENDPOINT = "wss://gateway-v2.maj-soul.com/contest_ws_gateway"
@@ -176,7 +175,7 @@ class ContestManager(MajsoulChannel):
         ------------
         account_ids: a list of Mahjong Soul account ids [East, South, West, North]
         random_position: whether to randomize the seats (ignore the ordering in accounts_ids)
-        open_live: this doesn't seem to make a difference...
+        open_live: whether the game can be spectated. DOESN'T WORK AS OF 7/19/2023.
         ai_level: 0 for Auto-Discard, 1 for Easy, 2 for Normal
         """
         playerList = []
