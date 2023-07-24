@@ -1,6 +1,6 @@
 # bot.py
 import dotenv
-import os
+from os import getenv, execl
 from os.path import join, dirname
 import discord
 from discord import app_commands, Interaction
@@ -10,10 +10,10 @@ from discord.ext import commands
 env_path = join(dirname(__file__), "config.env")
 dotenv.load_dotenv("config.env")
 
-DISCORD_TOKEN = os.environ.get("bot_token")
+DISCORD_TOKEN = getenv("bot_token")
 if DISCORD_TOKEN is None:
     raise Exception("Missing bot_token in config.env")
-EXTENSIONS_FILE = os.environ.get("extensions_file")
+EXTENSIONS_FILE = getenv("extensions_file")
 
 try:
     with open(EXTENSIONS_FILE, 'r') as f:
@@ -67,7 +67,7 @@ async def shutdown(ctx: commands.Context):
 @commands.is_owner()
 async def restart(ctx: commands.Context): 
     await ctx.send("Restarting...")
-    os.execl("./start.sh", "./start.sh")
+    execl("./start.sh", "./start.sh")
 
 @bot.command(name='load', hidden=True)
 @commands.is_owner()

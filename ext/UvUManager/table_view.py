@@ -226,9 +226,11 @@ class TableView(ui.View):
                     west_player.mjs_account_id,
                     north_player.mjs_account_id])
             except GeneralMajsoulError as error:
-                await interaction.followup.send(content=f"Failed to start a game. Did everyone hit `Prepare for match` on Mahjong Soul?")
-                # raise the error nonetheless
-                raise error
+                if error.errorCode == 2509:
+                    await interaction.followup.send(content=f"Failed to start a game. Did everyone hit `Prepare for match` on Mahjong Soul?")
+                    return
+                else:
+                    raise error
         
         # game started successfully! Delete the original message.
         await self.original_interaction.delete_original_response()
@@ -305,7 +307,7 @@ class TableView(ui.View):
                     ephemeral=True)
                 return
 
-            # try to start the game. Tell everyone to prepare for match if failed.
+            # try to start the game. Tell humans to prepare for match if failed.
             try:
                 await self.start_game(account_ids=[
                     east_player.mjs_account_id,
@@ -313,9 +315,11 @@ class TableView(ui.View):
                     west_player.mjs_account_id,
                     north_player.mjs_account_id])
             except GeneralMajsoulError as error:
-                await interaction.followup.send(content=f"Failed to start a game. Did every human hit `Prepare for match` on Mahjong Soul?")
-                # raise the error nonetheless
-                raise error
+                if error.errorCode == 2509:
+                    await interaction.followup.send(content=f"Failed to start a game. Did every human hit `Prepare for match` on Mahjong Soul?")
+                    return
+                else:
+                    raise error
         
         # game started successfully! Delete the original message.
         await self.original_interaction.delete_original_response()

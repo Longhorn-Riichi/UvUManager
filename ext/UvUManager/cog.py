@@ -1,29 +1,25 @@
 import asyncio
 import discord
+import gspread
+import os
+from os import getenv
 from discord.ext import commands
 from discord import app_commands, Interaction
-from os.path import join, dirname
-import json
 
 from modules.mahjongsoul.contest_manager import ContestManager
 from .table_view import TableView, Player, default_embed
-from modules.googlesheets.sheets_interface import Sheets_Interface
-
 
 EXTENSION_NAME = "UvUManager" # must be the same as class name...
 
-json_config_path = join(dirname(__file__), "config.json")
-with open(json_config_path, "r") as f:
-    json_config = json.load(f)
-CONTEST_UNIQUE_ID = json_config["contest_unique_id"]
-CONTEST_TOURNAMENT_ID = json_config["contest_tournament_id"]
-GUILD_ID = json_config["guild_id"]
-BOT_CHANNEL_ID = json_config["bot_channel_id"]
-PLAYER_ROLE = json_config["player_role"]
-ADMIN_ROLE = json_config["admin_role"]
-TEAM_1 = json_config["team_1"]
-TEAM_2 = json_config["team_2"]
-SPREADSHEET_ID = json_config["spreadsheet_id"]
+CONTEST_UNIQUE_ID = int(getenv("contest_unique_id"))
+CONTEST_TOURNAMENT_ID = getenv("contest_tournament_id")
+GUILD_ID = int(getenv("guild_id"))
+BOT_CHANNEL_ID = int(getenv("bot_channel_id"))
+PLAYER_ROLE = getenv("player_role")
+ADMIN_ROLE = getenv("admin_role")
+TEAM_1 = getenv("team_1")
+TEAM_2 = getenv("team_2")
+SPREADSHEET_ID = getenv("spreadsheet_id")
 
 
 class UvUManager(commands.Cog):
@@ -31,7 +27,13 @@ class UvUManager(commands.Cog):
         self.bot = bot
         self.bot_channel = None # fetched in `self.async_setup()`
         self.manager = ContestManager(CONTEST_UNIQUE_ID)
-        self.sheet = Sheets_Interface(spreadsheet_id=SPREADSHEET_ID)
+
+        current_path = os.path.dirname(__file__)
+        gs_client = gspread.service_account(
+            filename=os.path.join(current_path, 'gs_service_account.json'))
+        spreadsheet = gs_client.open_by_key(SPREADSHEET_ID)
+        self.registry = spreadsheet.worksheet("Registry")
+        self.game_results = spreadsheet.worksheet("Game Results")
 
     async def async_setup(self):
         """
@@ -155,23 +157,28 @@ class UvUManager(commands.Cog):
         # NOTE: `user.name` is the unique Discord account name (NOT the display name):
         discord_name = interaction.user.name
 
-        registry_values = [discord_name, mahjongsoul_nickname, mahjongsoul_account_id, affiliation.value]
-
-        # check if a Discord user already registered; if yes, override the entry instead of
-        # making a new entry
-        relative_row_num = self.sheet.find_relative_row_xl("Registry!A2:A", discord_name)
-        if relative_row_num >= 0:
-            absolute_row_num = 2 + relative_row_num
-            sheet_range = "Registry!A" + str(absolute_row_num) + ":D" + str(absolute_row_num)
-            self.sheet.update_xl(sheet_range, [registry_values])
+        # check if a Discord user already registered; if not,
+        # make a new entry; otherwise update the existing entry.
+        found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
+        if found_cell is None:
+            self.registry.append_row([
+                discord_name,
+                mahjongsoul_nickname,
+                mahjongsoul_account_id,
+                affiliation.value])
             await interaction.followup.send(
-                content=f"\"{discord_name}\" from {affiliation.value} has updated their registry with Mahjong Soul account \"{mahjongsoul_nickname}\".")
+                content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".")
             return
 
-        self.sheet.append_xl("Registry", [registry_values])
-
+        cells = f"B{found_cell.row}:D{found_cell.row}" # A1 notation
+        self.registry.update(
+            values=[[
+                mahjongsoul_nickname,
+                mahjongsoul_account_id,
+                affiliation.value]],
+            range_name=cells)
         await interaction.followup.send(
-            content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".")
+            content=f"\"{discord_name}\" from {affiliation.value} has updated their registry with Mahjong Soul account \"{mahjongsoul_nickname}\".")
             
 
     @app_commands.command(name="create_table", description="Create a table prompt where players self-assign seats before starting a game.")
@@ -222,7 +229,7 @@ class UvUManager(commands.Cog):
         player_seat_lookup = {a.seat: (a.account_id, a.nickname) for a in record.accounts}
 
         player_scores_rendered = ["Game concluded! Results:"] # to be newline-separated
-        google_sheets_row = [] # a list of values for a "Score Dump" row on Google Sheets
+        game_results_row = [] # a list of values for a "Game Results" row
         AI_count = 0
         for p in record.result.players:
             if not p.total_point:
@@ -234,7 +241,7 @@ class UvUManager(commands.Cog):
                 AI_count += 1
             player_scores_rendered.append(
                 f"{player_nickname} ({p.part_point_1}) [{p.total_point/1000:+}]")
-            google_sheets_row.extend((
+            game_results_row.extend((
                 player_account_id,
                 p.total_point/1000))
         
@@ -246,7 +253,7 @@ class UvUManager(commands.Cog):
         asyncio.create_task(self.bot_channel.send(
             content='\n'.join(player_scores_rendered)))
 
-        self.sheet.append_xl("Score Dump", [google_sheets_row])
+        self.game_results.append_row(game_results_row)
 
     """
     =====================================================
@@ -255,12 +262,9 @@ class UvUManager(commands.Cog):
     """
 
     def look_up_player(self, discord_name: str) -> Player | None:
-        relative_row_num = self.sheet.find_relative_row_xl("Registry!A2:A", discord_name)
-        
-        if relative_row_num >= 0:
-            absolute_row_num = 2 + relative_row_num
-            sheet_range = "Registry!A" + str(absolute_row_num) + ":D" + str(absolute_row_num)
-            values = self.sheet.read_xl(sheet_range)[0]
+        found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
+        if found_cell is not None:
+            values = self.registry.row_values(found_cell.row)
             return Player(
                 mjs_account_id=int(values[2]),
                 mjs_nickname=values[1],

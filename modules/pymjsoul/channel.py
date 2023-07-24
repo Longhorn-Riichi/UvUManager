@@ -150,14 +150,16 @@ class MajsoulChannel():
                     # Duplicate notifications can be received next to each other.
                     # Never process the same message twice.
                     if (name, msg) != self.MostRecentNotify:
-                        print("Notification received.")
-                        print(name)
-                        print(msg)
+                        if self.log_messages:
+                            print("Notification received.")
+                            print(name)
+                            print(msg)
                         self.MostRecentNotify = (name, msg)
 
                         await self.Notifications.put((name, msg))
                 elif msgType == MSG_TYPE_RESPONSE:
-                    print("Response received.")
+                    if self.log_messages:
+                        print("Response received.")
                     msgIndex = int.from_bytes(message[1:3], 'little')
                     msgPayload = message[3:]
 
@@ -273,7 +275,6 @@ class MajsoulChannel():
         resMessage.ParseFromString(resData)
 
         if resMessage.error.code:
-            print(resMessage)
             raise GeneralMajsoulError(resMessage.error.code, ERRORS.get(resMessage.error.code, 'Unknown error'))
 
         if self.log_messages:
