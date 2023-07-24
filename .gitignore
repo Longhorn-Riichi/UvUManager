@@ -1,8 +1,6 @@
 # secrets
 config.env
-**/config.json
-**/token.json
-**/credentials.json
+ext/UvUManager/gs_service_account.json
 
 # generated local files
 Pipfile.lock
