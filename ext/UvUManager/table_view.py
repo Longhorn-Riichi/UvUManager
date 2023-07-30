@@ -41,7 +41,7 @@ class TableView(ui.View):
     same seating arrangement as their previous game or that a different
     team starts East compared with their previous game.
     """
-    def __init__(self, look_up_player: Callable[[str], Player], start_game: Callable[[int, int, int, int], None], original_interaction: Interaction, timeout: float=300):
+    def __init__(self, look_up_player: Callable[[str], Player], start_game: Callable[[list[int]], None], original_interaction: Interaction, timeout: float=300):
         super().__init__(timeout=timeout)
         self.look_up_player = look_up_player
         self.start_game = start_game
