@@ -33,6 +33,7 @@ class UvUManager(commands.Cog):
             filename=os.path.join(current_path, 'gs_service_account.json'))
         spreadsheet = gs_client.open_by_key(SPREADSHEET_ID)
         self.registry = spreadsheet.worksheet("Registry")
+        self.registry_lock = asyncio.Lock()
         self.game_results = spreadsheet.worksheet("Game Results")
 
     async def async_setup(self):
@@ -159,27 +160,44 @@ class UvUManager(commands.Cog):
 
         # check if a Discord user already registered; if not,
         # make a new entry; otherwise update the existing entry.
-        found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
-        if found_cell is None:
-            self.registry.append_row([
-                discord_name,
-                mahjongsoul_nickname,
-                mahjongsoul_account_id,
-                affiliation.value])
-            await interaction.followup.send(
-                content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".")
-            return
-
-        cells = f"B{found_cell.row}:D{found_cell.row}" # A1 notation
-        self.registry.update(
-            values=[[
-                mahjongsoul_nickname,
-                mahjongsoul_account_id,
-                affiliation.value]],
-            range_name=cells)
-        await interaction.followup.send(
-            content=f"\"{discord_name}\" from {affiliation.value} has updated their registry with Mahjong Soul account \"{mahjongsoul_nickname}\".")
+        async with self.registry_lock:
+            found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
+            if found_cell is None:
+                self.registry.append_row([
+                    discord_name,
+                    mahjongsoul_nickname,
+                    mahjongsoul_account_id,
+                    affiliation.value])
+                await interaction.followup.send(
+                    content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".")
+            else:
+                cells = f"B{found_cell.row}:D{found_cell.row}" # A1 notation
+                self.registry.update(
+                    values=[[
+                        mahjongsoul_nickname,
+                        mahjongsoul_account_id,
+                        affiliation.value]],
+                    range_name=cells)
+                await interaction.followup.send(
+                    content=f"\"{discord_name}\" from {affiliation.value} has updated their registry with Mahjong Soul account \"{mahjongsoul_nickname}\".")
             
+    @app_commands.command(name="unregister", description="Remove your registered Mahjong Soul account from the registry.")
+    @app_commands.checks.has_role(PLAYER_ROLE)
+    async def unregister(self, interaction: Interaction):
+        await interaction.response.defer()
+
+        discord_name = interaction.user.name
+
+        async with self.registry_lock:
+            found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
+            if found_cell is None:
+                await interaction.followup.send(
+                    content=f"\"{discord_name}\" does not have a registered Mahjong Soul account.")
+            else:
+                [_, mahjongsoul_nickname, mahjongsoul_account_id, affiliation] = self.registry.row_values(found_cell.row)
+                self.registry.delete_row(found_cell.row)
+                await interaction.followup.send(
+                    content=f"\"{discord_name}\" from {affiliation} has removed their account \"{mahjongsoul_nickname}\" from the registry.")
 
     @app_commands.command(name="create_table", description="Create a table prompt where players self-assign seats before starting a game.")
     @app_commands.checks.has_role(PLAYER_ROLE)
