@@ -6,7 +6,7 @@ A Discord bot for Longhorn Riichi's special tournament "UTA vs UTD". Functions i
 First, `cp config.template.env config.env`.
 ### Discord Stuff
 1. set up a bot account on Discord's [developer portal](https://discord.com/developers/applications) (`New Application`).
-    - Privileged Gateway Intents: `MESSAGE CONTENT INTENT`
+    - (SETTINGS -> Bot) Privileged Gateway Intents: `MESSAGE CONTENT INTENT`
 1. invite the bot to the respective servers. You can use the developer portal's OAuth2 URL Generator (SETTINGS -> OAuth2 -> URL Generator):
     - Scopes: bot
     - Bot Permissions: Send Messages, Manage Messages, Add Reactions
@@ -26,7 +26,7 @@ First, `cp config.template.env config.env`.
         ./start.sh
 1. in the relevant Discord server: run `$sync_local` to sync the slash commands for that server.
 
-## Relevant Links
+## Relevant Links (References)
 - [Riichi Nomi's Ronnie bot](https://github.com/RiichiNomi/ronnie)
 - [mjsoul.py](https://github.com/RiichiNomi/mjsoul.py)
 - [ms_api: Mahjong Soul API in Python](https://github.com/MahjongRepository/mahjong_soul_api/tree/master) (this project originally relied on this API and then switched to [mjsoul.py](https://github.com/RiichiNomi/mjsoul.py))
