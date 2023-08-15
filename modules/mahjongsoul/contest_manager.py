@@ -1,6 +1,7 @@
 import os
 import hmac
 import hashlib
+import logging
 
 from modules.pymjsoul.channel import MajsoulChannel, GeneralMajsoulError
 from modules.pymjsoul.proto import liqi_combined_pb2
@@ -56,7 +57,7 @@ class ContestManager(MajsoulChannel):
             password = hmac.new(b"lailai", MS_PASSWORD.encode(), hashlib.sha256).hexdigest(),
             type = 0)
     
-        print(f"`loginContestManager` with {MS_USERNAME} successful!")
+        logging.info(f"`loginContestManager` with {MS_USERNAME} successful!")
     
         res = await super().call(
             methodName = 'manageContest',
@@ -64,12 +65,12 @@ class ContestManager(MajsoulChannel):
 
         self.contest = res.contest
 
-        print(f"`manageContest` for {self.contest.contest_name} successful!")
+        logging.info(f"`manageContest` for {self.contest.contest_name} successful!")
 
         # `startManageGame` is needed to start receiving the notifications
         await super().call(methodName = 'startManageGame')
         
-        print(f"`startManageGame` successful!")
+        logging.info(f"`startManageGame` successful!")
 
     async def call(self, methodName, **msgFields):
         """
@@ -87,7 +88,7 @@ class ContestManager(MajsoulChannel):
                 the account may have been logged out elsewhere unintentionally,
                 e.g., from the web version of the tournament manager)
                 """
-                print("Received `ERR_CONTEST_MGR_NOT_LOGIN`; now trying to log in again and resend the previous request.")
+                logging.info("Received `ERR_CONTEST_MGR_NOT_LOGIN`; now trying to log in again and resend the previous request.")
                 await self.reconnect_and_login()
                 return await super().call(methodName, **msgFields)
             else:
@@ -99,7 +100,7 @@ class ContestManager(MajsoulChannel):
             similar to above; try logging back in once and retrying the call.
             Do nothing if the retry still failed.
             """
-            print("ConnectionClosed[Error], will try reconnecting once")
+            logging.info("ConnectionClosed[Error], will try reconnecting once")
             await self.reconnect_and_login()
             return await super().call(methodName, **msgFields)
 

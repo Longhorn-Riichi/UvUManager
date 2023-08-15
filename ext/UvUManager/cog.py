@@ -5,6 +5,7 @@ import os
 from os import getenv
 from discord.ext import commands
 from discord import app_commands, Interaction
+import logging
 
 from modules.mahjongsoul.contest_manager import ContestManager
 from .table_view import TableView, Player, default_embed
@@ -296,10 +297,10 @@ async def setup(bot: commands.Bot):
     instance = UvUManager(bot)
     asyncio.create_task(instance.async_setup())
     await bot.add_cog(instance, guild=discord.Object(id=GUILD_ID))
-    print(f"Extension `{EXTENSION_NAME}` is being loaded")
+    logging.info(f"Extension `{EXTENSION_NAME}` is being loaded")
 
 # `teardown()` currently doesn't get called for some reason...
 # async def teardown(bot: commands.Bot):
 #     instance: UvUManager = bot.get_cog(EXTENSION_NAME)
 #     await instance.manager.close()
-#     print(f"Extension `{EXTENSION_NAME}` is being unloaded")
+#     logging.info(f"Extension `{EXTENSION_NAME}` is being unloaded")
