@@ -4,6 +4,7 @@ import hashlib
 
 from modules.pymjsoul.channel import MajsoulChannel, GeneralMajsoulError
 from modules.pymjsoul.proto import liqi_combined_pb2
+from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 # MS_MANAGER_WSS_ENDPOINT: `__MJ_DHS_WS__` from https://www.maj-soul.com/dhs/js/config.js
 MS_MANAGER_WSS_ENDPOINT = "wss://gateway-v2.maj-soul.com/contest_ws_gateway"
@@ -18,7 +19,7 @@ class ContestManager(MajsoulChannel):
     """
     wraps around the `MajsoulChannel` class to provide additional functionalities for managing ONE specific contest on Discord
     """
-    def __init__(self, contest_unique_id, log_messages=False):
+    def __init__(self, contest_unique_id, log_messages=True):
         self.contest_unique_id = contest_unique_id
         self.contest = None # contest info; `CustomizedContest` protobuf
         super().__init__(proto=liqi_combined_pb2, log_messages=log_messages)
@@ -90,7 +91,17 @@ class ContestManager(MajsoulChannel):
                 await self.reconnect_and_login()
                 return await super().call(methodName, **msgFields)
             else:
-                raise error  
+                # raise other GeneralMajsoulError
+                raise error
+        except (ConnectionClosedError,
+                ConnectionClosed) as error:
+            """
+            similar to above; try logging back in once and retrying the call.
+            Do nothing if the retry still failed.
+            """
+            print("ConnectionClosed[Error], will try reconnecting once")
+            await self.reconnect_and_login()
+            return await super().call(methodName, **msgFields)
 
     async def get_ongoing_game_uuid(self, nickname):
         """
