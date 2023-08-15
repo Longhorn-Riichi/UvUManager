@@ -134,7 +134,7 @@ class UvUManager(commands.Cog):
     ])
     @app_commands.describe(
         friend_id="Find your friend ID in the Friends tab; this is separate from your username.",
-        affiliation=f"Which club you represent: {TEAM_1}? {TEAM_2}?")
+        affiliation=f"Which club do you represent: {TEAM_1}? {TEAM_2}?")
     async def register(self, interaction: Interaction, friend_id: int, affiliation: app_commands.Choice[str]):
         """
         here we use Mahjong Soul ID as the unique identifier, since the
