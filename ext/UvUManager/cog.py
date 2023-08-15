@@ -251,10 +251,9 @@ class UvUManager(commands.Cog):
         game_results_row = [] # a list of values for a "Game Results" row
         AI_count = 0
         for p in record.result.players:
-            if not p.total_point:
-                # the object has no `total_point` if the player ends up
-                # with 0 points after bonuses...
-                p.total_point = 0
+            # NOTE: we assume that the omitted fields are properly initialized
+            # at their default value (i.e., `0` for `part_point_1` and `total_point`)
+
             player_account_id, player_nickname = player_seat_lookup.get(p.seat, (0, "AI"))
             if player_account_id == 0:
                 AI_count += 1
