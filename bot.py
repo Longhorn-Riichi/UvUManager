@@ -5,6 +5,18 @@ from os.path import join, dirname
 import discord
 from discord import app_commands, Interaction
 from discord.ext import commands
+import logging
+
+# INFO level captures all except DEBUG log messages.
+# the FileHandler by default appends to the given file
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("log.txt"),
+        logging.StreamHandler()
+    ]
+)
 
 # load environmental variables
 env_path = join(dirname(__file__), "config.env")
@@ -40,7 +52,7 @@ bot.remove_command('help')
 # bot events
 @bot.event
 async def on_ready():
-    print(f"{bot.user} is now online.")
+    logging.info(f"{bot.user} is now online.")
 
 # bot commands (non-slash; only for the admin/owner)
 @bot.command(name='sync_local', hidden=True)

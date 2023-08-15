@@ -5,6 +5,7 @@ import os
 from os import getenv
 from discord.ext import commands
 from discord import app_commands, Interaction
+import logging
 
 from modules.mahjongsoul.contest_manager import ContestManager
 from .table_view import TableView, Player, default_embed
@@ -134,7 +135,7 @@ class UvUManager(commands.Cog):
     ])
     @app_commands.describe(
         friend_id="Find your friend ID in the Friends tab; this is separate from your username.",
-        affiliation=f"Which club you represent: {TEAM_1}? {TEAM_2}?")
+        affiliation=f"Which club do you represent: {TEAM_1}? {TEAM_2}?")
     async def register(self, interaction: Interaction, friend_id: int, affiliation: app_commands.Choice[str]):
         """
         here we use Mahjong Soul ID as the unique identifier, since the
@@ -250,10 +251,6 @@ class UvUManager(commands.Cog):
         game_results_row = [] # a list of values for a "Game Results" row
         AI_count = 0
         for p in record.result.players:
-            if not p.total_point:
-                # the object has no `total_point` if the player ends up
-                # with 0 points after bonuses...
-                p.total_point = 0
             player_account_id, player_nickname = player_seat_lookup.get(p.seat, (0, "AI"))
             if player_account_id == 0:
                 AI_count += 1
@@ -296,10 +293,10 @@ async def setup(bot: commands.Bot):
     instance = UvUManager(bot)
     asyncio.create_task(instance.async_setup())
     await bot.add_cog(instance, guild=discord.Object(id=GUILD_ID))
-    print(f"Extension `{EXTENSION_NAME}` is being loaded")
+    logging.info(f"Extension `{EXTENSION_NAME}` is being loaded")
 
 # `teardown()` currently doesn't get called for some reason...
 # async def teardown(bot: commands.Bot):
 #     instance: UvUManager = bot.get_cog(EXTENSION_NAME)
 #     await instance.manager.close()
-#     print(f"Extension `{EXTENSION_NAME}` is being unloaded")
+#     logging.info(f"Extension `{EXTENSION_NAME}` is being unloaded")

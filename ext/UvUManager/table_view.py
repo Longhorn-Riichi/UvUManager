@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 from discord import ui, ButtonStyle, Interaction, Embed
 import asyncio
 from modules.mahjongsoul.contest_manager import EAST, SOUTH, WEST, NORTH
@@ -49,17 +49,25 @@ class TableView(ui.View):
         # TOTHINK: fetch and save the InteractionMessage instead?
         self.original_interaction = original_interaction
 
-        self.table: list[Player] = [None]*TABLE_SIZE
+        self.table: list[Optional[Player]] = [None]*TABLE_SIZE
         self.table_lock = asyncio.Lock()
 
     async def on_timeout(self):
-        await self.original_interaction.delete_original_response()
+        await self.delete_view()
 
     """
     =====================================================
     HELPER FUNCTIONS
     =====================================================
     """
+
+    async def delete_view(self):
+        """
+        deletes the view elegantly, without lingering timeout callbacks, etc.
+        """
+        await self.original_interaction.delete_original_response()
+        self.stop() # needed for clean-up and must be called after deletion
+        
 
     def set_button_disabled(self, button_label: str, disabled: bool):
         """
@@ -176,7 +184,7 @@ class TableView(ui.View):
             return
         
         await interaction.response.defer()
-        await self.original_interaction.delete_original_response()
+        await self.delete_view()
 
     @ui.button(label="START", style=ButtonStyle.green, row=1)
     async def start_button(self, interaction: Interaction, button: ui.Button):
@@ -233,7 +241,7 @@ class TableView(ui.View):
                     raise error
         
         # game started successfully! Delete the original message.
-        await self.original_interaction.delete_original_response()
+        await self.delete_view()
             
     @ui.button(label="START WITH AI", style=ButtonStyle.green, row=1)
     async def start_with_ai_button(self, interaction: Interaction, button: ui.Button):
@@ -322,5 +330,6 @@ class TableView(ui.View):
                     raise error
         
         # game started successfully! Delete the original message.
-        await self.original_interaction.delete_original_response()
+        await self.delete_view()
+    
     
