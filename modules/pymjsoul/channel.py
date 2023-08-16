@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 
 import websockets
 import logging
@@ -50,9 +51,9 @@ class MajsoulChannel():
         self.Notifications = asyncio.Queue()
         self.log_messages = log_messages
 
-        self.sustain_task: asyncio.Task = None
-        self.listen_task: asyncio.Task = None
-        self.eventloop_task: asyncio.Task = None
+        self.sustain_task: Optional[asyncio.Task] = None
+        self.listen_task: Optional[asyncio.Task] = None
+        self.eventloop_task: Optional[asyncio.Task] = None
     
     async def clean_up(self):
         """
