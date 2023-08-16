@@ -166,6 +166,7 @@ class UvUManager(commands.Cog):
                 self.registry.append_row([
                     discord_name,
                     mahjongsoul_nickname,
+                    friend_id,
                     mahjongsoul_account_id,
                     affiliation.value])
                 await interaction.followup.send(
@@ -175,6 +176,7 @@ class UvUManager(commands.Cog):
                 self.registry.update(
                     values=[[
                         mahjongsoul_nickname,
+                        friend_id,
                         mahjongsoul_account_id,
                         affiliation.value]],
                     range_name=cells)
@@ -194,7 +196,7 @@ class UvUManager(commands.Cog):
                 await interaction.followup.send(
                     content=f"\"{discord_name}\" does not have a registered Mahjong Soul account.")
             else:
-                [_, mahjongsoul_nickname, mahjongsoul_account_id, affiliation] = self.registry.row_values(found_cell.row)
+                [_, mahjongsoul_nickname, mahjongsoul_account_id, friend_code, affiliation] = self.registry.row_values(found_cell.row)
                 self.registry.delete_row(found_cell.row)
                 await interaction.followup.send(
                     content=f"\"{discord_name}\" from {affiliation} has removed their account \"{mahjongsoul_nickname}\" from the registry.")
