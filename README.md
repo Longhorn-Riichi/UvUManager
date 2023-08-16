@@ -4,7 +4,7 @@ A Discord bot for Longhorn Riichi's special tournament "UTA vs UTD". Functions i
 ## Repository Structure:
 - `/ext/extensions`: list of all modules for `bot.py` to load from `/ext/`, one per line
 - `/modules/pymjsoul`: a copy of [mjsoul.py](https://github.com/RiichiNomi/mjsoul.py) that provides `MajsoulChannel`, a class for interfacing with Mahjong Soul's API
-- `/modules/mahjongsoul`: contains a superclass of `MajsoulChannel` for use in our bot (in `/ext/extensions/UvUManager`)
+- `/modules/mahjongsoul`: contains a wrapper of `MajsoulChannel` for use in our bot (in `/ext/extensions/UvUManager`)
 ## Setting up the bot
 First, `cp config.template.env config.env`.
 ### Discord Stuff
