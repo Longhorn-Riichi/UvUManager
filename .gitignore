@@ -11,3 +11,6 @@ log.txt
 **/package.json
 **/package-lock.json
 **/node_modules
+
+# tests
+test_contest_manager.py

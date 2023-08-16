@@ -26,6 +26,10 @@ First, `cp config.template.env config.env`.
         ./start.sh
 1. in the relevant Discord server: run `$sync_local` to sync the slash commands for that server.
 
+## Automated Features
+1. pings the server every 4 hours to see if a reconnection is necessary.
+1. every ping, requests to set the `finish_time` of the tournament to be 90 days from the current time. Note that the `deadline` still needs to be extended manually (this can't be automated because only the contest creator can extend the deadline).
+
 ## Relevant Links (References)
 - [Riichi Nomi's Ronnie bot](https://github.com/RiichiNomi/ronnie)
 - [mjsoul.py](https://github.com/RiichiNomi/mjsoul.py)

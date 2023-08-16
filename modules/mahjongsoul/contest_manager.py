@@ -1,16 +1,18 @@
-import os
 import hmac
 import hashlib
 import logging
-
+import asyncio
+import datetime
+from typing import Optional
+from os import getenv
 from modules.pymjsoul.channel import MajsoulChannel, GeneralMajsoulError
 from modules.pymjsoul.proto import liqi_combined_pb2
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 # MS_MANAGER_WSS_ENDPOINT: `__MJ_DHS_WS__` from https://www.maj-soul.com/dhs/js/config.js
 MS_MANAGER_WSS_ENDPOINT = "wss://gateway-v2.maj-soul.com/contest_ws_gateway"
-MS_USERNAME = os.environ.get("ms_username")
-MS_PASSWORD = os.environ.get("ms_password")
+MS_USERNAME = getenv("ms_username")
+MS_PASSWORD = getenv("ms_password")
 EAST = 0
 SOUTH = 1
 WEST = 2
@@ -20,10 +22,63 @@ class ContestManager(MajsoulChannel):
     """
     wraps around the `MajsoulChannel` class to provide additional functionalities for managing ONE specific contest on Discord
     """
-    def __init__(self, contest_unique_id, log_messages=True):
+    def __init__(self, contest_unique_id, log_messages=False):
         self.contest_unique_id = contest_unique_id
         self.contest = None # contest info; `CustomizedContest` protobuf
         super().__init__(proto=liqi_combined_pb2, log_messages=log_messages)
+        self.huge_ping_task: Optional[asyncio.Task] = None
+    
+    async def login_and_start_listening(self):
+        """
+        this is its own method so it can be used again without having to establish
+        another WSS connection (e.g., when we were logged out outside of this module)
+        NOTE: this method starts the `huge_ping` task. It should be canceled before
+        reusing this method.
+        NOTE: use `super().call()` to avoid infinite errors
+        """
+        await super().call(
+            methodName = "loginContestManager",
+            account = MS_USERNAME,
+            password = hmac.new(b"lailai", MS_PASSWORD.encode(), hashlib.sha256).hexdigest(),
+            type = 0)
+        logging.info(f"`loginContestManager` with {MS_USERNAME} successful!")
+
+        res = await super().call(
+            methodName = 'manageContest',
+            unique_id = self.contest_unique_id)
+        self.contest = res.contest
+        logging.info(f"`manageContest` for {self.contest.contest_name} successful!")
+
+        self.huge_ping_task = asyncio.create_task(self.huge_ping())
+
+        # `startManageGame` will make mahjong soul start sending notifications
+        # like `NotifyContestGameStart` and `NotifyContestGameEnd`
+        await super().call(methodName = 'startManageGame')
+        
+        logging.info(f"`startManageGame` successful!")
+    
+    async def huge_ping(self, huge_ping_interval=14400):
+        """
+        this task tries to set the contest finish_time to be 90 days from
+        `now` regularly (default: every 4 hours). This serves two purposes:
+        1. automatically extend the contest finish_time (90 days is the safe max)
+        2. attempts reconnection when necessary (via the wrapped `call()`)
+        """
+        try:
+            while True:
+                ninety_days_later = datetime.datetime.now() + datetime.timedelta(days=90)
+                try:
+                    await self.call(
+                        "updateContestGameRule",
+                        finish_time = int(ninety_days_later.timestamp()))
+                    logging.info(f"huge_ping'd.")
+                except GeneralMajsoulError:
+                    # ignore mahjong soul errors not caught in wrapped `call()`
+                    pass
+                
+                await asyncio.sleep(huge_ping_interval)
+        except asyncio.CancelledError:
+            logging.info("`huge_ping` task cancelled")
 
     async def connect_and_login(self):
         """
@@ -41,36 +96,9 @@ class ContestManager(MajsoulChannel):
         Needs to make a new connection with `self.reconnect()` because trying to
         log in through the same connection results in `2504 : "ERR_CONTEST_MGR_HAS_LOGINED"`
         """
+        self.huge_ping_task.cancel()
         await self.reconnect()
         await self.login_and_start_listening()
-
-    async def login_and_start_listening(self):
-        """
-        this is its own method so it can be used again without having to establish
-        another WSS connection (e.g., when we were logged out outside of this module)
-
-        NOTE: use the original `MajsoulChannel.call()` to avoid infinite errors
-        """
-        await super().call(
-            methodName = "loginContestManager",
-            account = MS_USERNAME,
-            password = hmac.new(b"lailai", MS_PASSWORD.encode(), hashlib.sha256).hexdigest(),
-            type = 0)
-    
-        logging.info(f"`loginContestManager` with {MS_USERNAME} successful!")
-    
-        res = await super().call(
-            methodName = 'manageContest',
-            unique_id = self.contest_unique_id)
-
-        self.contest = res.contest
-
-        logging.info(f"`manageContest` for {self.contest.contest_name} successful!")
-
-        # `startManageGame` is needed to start receiving the notifications
-        await super().call(methodName = 'startManageGame')
-        
-        logging.info(f"`startManageGame` successful!")
 
     async def call(self, methodName, **msgFields):
         """
@@ -79,8 +107,8 @@ class ContestManager(MajsoulChannel):
         """
         try:
             return await super().call(methodName, **msgFields)
-        except GeneralMajsoulError as error:
-            if error.errorCode == 2505:
+        except GeneralMajsoulError as mjsError:
+            if mjsError.errorCode == 2505:
                 """
                 "ERR_CONTEST_MGR_NOT_LOGIN"
                 In this case, try logging BACK in and retrying the call.
@@ -93,14 +121,14 @@ class ContestManager(MajsoulChannel):
                 return await super().call(methodName, **msgFields)
             else:
                 # raise other GeneralMajsoulError
-                raise error
+                raise mjsError
         except (ConnectionClosedError,
-                ConnectionClosed) as error:
+                ConnectionClosed):
             """
             similar to above; try logging back in once and retrying the call.
             Do nothing if the retry still failed.
             """
-            logging.info("ConnectionClosed[Error], will try reconnecting once")
+            logging.info("ConnectionClosed[Error]; now trying to log in again and resend the previous request.")
             await self.reconnect_and_login()
             return await super().call(methodName, **msgFields)
 
