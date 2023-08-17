@@ -17,7 +17,7 @@ First, `cp config.template.env config.env`.
 1. fill in the `Discord Stuff` section of [config.env](config.env). The bot token can be obtained through (SETTINGS -> Bot \[-> Reset Token\])
 ### Google Sheets Stuff
 1. set up a Google Cloud project. Enable Google Sheets API access, and make a service account. Generate a JSON key for that service account and save it as `gs_service_account.json` in [ext/UvUManager/](ext/UvUManager/)
-1. make a suitable Google Spreadsheet ([example](https://docs.google.com/spreadsheets/d/1rvsH9FQVwqV5IE5YJbBqVqPjCJsl6P7E376IQBg4_Pg/edit?usp=sharing)) and share the Spreadsheet with that service account.
+1. make a suitable Google Spreadsheet ([example](https://docs.google.com/spreadsheets/d/1BQ1w98Ipp_7OUa_sgn8rK40TLIbV_LuqxXkPhO4H6-Y/edit?usp=sharing)) and share the Spreadsheet with that service account.
 1. fill in the `Google Sheets Stuff` section of [config.env](config.env)
 ### Mahjong Soul Stuff
 1. fill in the `Mahjong Soul Stuff` section of [config.env](config.env)
