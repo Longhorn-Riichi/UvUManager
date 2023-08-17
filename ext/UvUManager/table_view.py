@@ -35,7 +35,7 @@ class Player:
         """
         used for rendering the TableView; does not display the Mahjong Soul account id.
         """
-        sub_string = "" if self.subbing_for_discord_name == "" else f" (subbing for {self.subbing_for_discord_name} | {self.subbing_for_mjs_name})"
+        sub_string = "" if self.subbing_for_discord_name == None else f" (subbing for {self.subbing_for_discord_name} | {self.subbing_for_mjs_name})"
         return f"{self.discord_name} (MJS: {self.mjs_nickname}) [{self.affiliation}]{sub_string}"
 
     def __repr__(self) -> str:
