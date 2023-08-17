@@ -291,10 +291,6 @@ class UvUManager(commands.Cog):
 
         record = await self.manager.locate_completed_game(msg.game_uuid)
 
-        # DEBUG
-        with open("logfile3.txt", "wb") as f:
-            f.write(record.SerializeToString())
-
         if record is None:
             await self.bot_channel.send("A game concluded without a record (possibly due to being terminated early).")
             return
