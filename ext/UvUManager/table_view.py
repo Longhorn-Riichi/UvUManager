@@ -3,6 +3,8 @@ from discord import ui, ButtonStyle, Interaction, Embed
 import asyncio
 from modules.mahjongsoul.contest_manager import EAST, SOUTH, WEST, NORTH
 from modules.pymjsoul.channel import GeneralMajsoulError
+from typing import *
+import gspread
 
 # the wind indices for TableView.table
 button_labels = ["E", "S", "W", "N"]
@@ -15,18 +17,26 @@ default_embed = Embed(description=(
 ))
 
 class Player:
-    def __init__(self, mjs_account_id: int=0, mjs_nickname: str="AI", discord_name: str="AI", affiliation: str="AI"):
+    def __init__(self, mjs_account_id: int=0,
+                       mjs_nickname: str="AI",
+                       discord_name: str="AI",
+                       affiliation: str="AI",
+                       subbing_for_discord_name: Optional[str]=None,
+                       subbing_for_mjs_name: Optional[str]=None):
         # the default values correspond to an AI opponent (not a real player)
         self.mjs_account_id = mjs_account_id
         self.mjs_nickname = mjs_nickname
         self.discord_name = discord_name
         self.affiliation = affiliation
+        self.subbing_for_discord_name = subbing_for_discord_name
+        self.subbing_for_mjs_name = subbing_for_mjs_name
 
     def __str__(self) -> str:
         """
         used for rendering the TableView; does not display the Mahjong Soul account id.
         """
-        return f"{self.discord_name} (MJS: {self.mjs_nickname}) [{self.affiliation}]"
+        sub_string = "" if self.subbing_for_discord_name == "" else f" (subbing for {self.subbing_for_discord_name} | {self.subbing_for_mjs_name})"
+        return f"{self.discord_name} (MJS: {self.mjs_nickname}) [{self.affiliation}]{sub_string}"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -41,7 +51,10 @@ class TableView(ui.View):
     same seating arrangement as their previous game or that a different
     team starts East compared with their previous game.
     """
-    def __init__(self, look_up_player: Callable[[str], Player], start_game: Callable[[int, int, int, int], None], original_interaction: Interaction, timeout: float=300):
+    def __init__(self, look_up_player: Callable[[Optional[str]], Player],
+                       start_game: Callable[[int, int, int, int], None],
+                       original_interaction: Interaction,
+                       timeout: float=300):
         super().__init__(timeout=timeout)
         self.look_up_player = look_up_player
         self.start_game = start_game
@@ -49,7 +62,7 @@ class TableView(ui.View):
         # TOTHINK: fetch and save the InteractionMessage instead?
         self.original_interaction = original_interaction
 
-        self.table: list[Player] = [None]*TABLE_SIZE
+        self.table: List[Optional[Player]] = [None]*TABLE_SIZE
         self.table_lock = asyncio.Lock()
 
     async def on_timeout(self):
@@ -208,6 +221,10 @@ class TableView(ui.View):
             south_player = self.table[SOUTH]
             west_player = self.table[WEST]
             north_player = self.table[NORTH]
+            assert east_player is not None
+            assert south_player is not None
+            assert west_player is not None
+            assert north_player is not None
             
             # ensure that the seating arrangement is valid
             if (east_player.affiliation != west_player.affiliation
