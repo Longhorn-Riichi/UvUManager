@@ -192,6 +192,7 @@ class UvUManager(commands.Cog):
         friend_id="Find your friend ID in the Friends tab; this is separate from your username. Omit if you are already registred.")
     async def register_sub(self, interaction: Interaction, sub_for: discord.Member, friend_id: Optional[int] = None):
         await interaction.response.defer()
+        discord_name = interaction.user.name
         if str(sub_for.name) == str(interaction.user.name):
             return await interaction.followup.send(content=f"\"{discord_name}\" cannot sub for themselves.")
         async with self.registry_lock:
@@ -205,7 +206,6 @@ class UvUManager(commands.Cog):
                 [_, _, _, _, sub_affiliation, *rest] = self.registry.row_values(found_cell.row)
 
             # If friend_id is not passed in, we must be registered and we use our preexisting friend id
-            discord_name = interaction.user.name
             if friend_id is None:
                 found_cell = self.registry.find(discord_name, in_column=1)
                 if found_cell is None:
@@ -359,7 +359,7 @@ class UvUManager(commands.Cog):
             if len(rest) > 0:
                 subbing_for = rest[0]
                 # find the name of the player being subbed for
-                found_cell = self.registry.find(str(subbing_for), in_column=4)
+                found_cell = self.registry.find(str(subbing_for), in_column=1)
                 if found_cell is None: # possibly the subbed player unregistered; act like there is no sub
                     pass
                 else:
