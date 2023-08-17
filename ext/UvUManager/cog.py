@@ -9,19 +9,24 @@ import logging
 
 from modules.mahjongsoul.contest_manager import ContestManager
 from .table_view import TableView, Player, default_embed
+from typing import *
 
 EXTENSION_NAME = "UvUManager" # must be the same as class name...
 
-CONTEST_UNIQUE_ID = int(getenv("contest_unique_id"))
-CONTEST_TOURNAMENT_ID = getenv("contest_tournament_id")
-GUILD_ID = int(getenv("guild_id"))
-BOT_CHANNEL_ID = int(getenv("bot_channel_id"))
-PLAYER_ROLE = getenv("player_role")
-ADMIN_ROLE = getenv("admin_role")
-TEAM_1 = getenv("team_1")
-TEAM_2 = getenv("team_2")
-SPREADSHEET_ID = getenv("spreadsheet_id")
+def assert_getenv(name: str) -> Any:
+    value = getenv(name)
+    assert value is not None, f"missing \"{name}\" in config.env"
+    return value
 
+CONTEST_UNIQUE_ID: int     = int(assert_getenv("contest_unique_id"))
+CONTEST_TOURNAMENT_ID: str = assert_getenv("contest_tournament_id")
+GUILD_ID: int              = int(assert_getenv("guild_id"))
+BOT_CHANNEL_ID: int        = int(assert_getenv("bot_channel_id"))
+PLAYER_ROLE: str           = assert_getenv("player_role")
+ADMIN_ROLE: str            = assert_getenv("admin_role")
+TEAM_1: str                = assert_getenv("team_1")
+TEAM_2: str                = assert_getenv("team_2")
+SPREADSHEET_ID: str        = assert_getenv("spreadsheet_id")
 
 class UvUManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -51,6 +56,7 @@ class UvUManager(commands.Cog):
         await self.manager.connect_and_login()
         await self.manager.subscribe("NotifyContestGameStart", self.on_NotifyContestGameStart)
         await self.manager.subscribe("NotifyContestGameEnd", self.on_NotifyContestGameEnd)
+
 
     """
     =====================================================
@@ -127,6 +133,36 @@ class UvUManager(commands.Cog):
         message = await self.manager.unpause_game(player.mjs_nickname)
         await interaction.followup.send(content=message)
 
+    async def _register(self, player: discord.Member, friend_id: int, affiliation: str, subbing_for: Optional[str] = None) -> str:
+        """Add player to the registry, removing any existing registration first"""
+        async with self.registry_lock:
+            # Fetch friend details
+            res = await self.manager.call("searchAccountByEid", eids = [int(friend_id)])
+            # if no account found, then `res` won't have a `search_result` field, but it won't
+            # have an `error`` field, either (i.e., it's not an error!).
+            if not res.search_result:
+                raise Exception(f"Couldn't find Mahjong Soul account for this friend ID: {friend_id}")
+            mahjongsoul_nickname = res.search_result[0].nickname
+            mahjongsoul_account_id = res.search_result[0].account_id
+
+            # Delete any existing registration
+            found_cell = self.registry.find(str(player.name), in_column=1)
+            cell_existed = found_cell is not None
+            if cell_existed:
+                self.registry.delete_row(found_cell.row)
+
+            data = [player.name,
+                    mahjongsoul_nickname,
+                    friend_id,
+                    mahjongsoul_account_id,
+                    affiliation,
+                    subbing_for]
+            self.registry.append_row(data)
+            if cell_existed:
+                return f"Updated registration for \"{player.name}\" from {affiliation} with Mahjong Soul account \"{mahjongsoul_nickname}\"."
+            else:
+                return f"Registered \"{player.name}\" from {affiliation} with Mahjong Soul account \"{mahjongsoul_nickname}\"."
+
     @app_commands.command(name="register", description="Register yourself with your Mahjong Soul friend ID, or update your existing registry.")
     @app_commands.checks.has_role(PLAYER_ROLE)
     @app_commands.choices(affiliation=[
@@ -142,65 +178,79 @@ class UvUManager(commands.Cog):
         tournament will be held over Mahjong Soul anyway.
         """
         await interaction.response.defer()
+        assert isinstance(interaction.user, discord.Member)
+        try:
+            response = await self._register(interaction.user, friend_id, affiliation.value)
+            await interaction.followup.send(content=response)
+        except Exception as e:
+            await interaction.followup.send(content=str(e))
 
-        res = await self.manager.call(
-            "searchAccountByEid",
-            eids = [friend_id])
-
-        # if no account found, then `res` won't have a `search_result` field, but it won't
-        # have an `error`` field, either (i.e., it's not an error!).
-        if not res.search_result:
-            await interaction.followup.send(content=f"Couldn't find Mahjong Soul account for this friend ID: {friend_id}")
-            return
-
-        mahjongsoul_nickname = res.search_result[0].nickname
-        # NOTE: account ID is different from friend ID!!!
-        mahjongsoul_account_id = res.search_result[0].account_id
-        # NOTE: `user.name` is the unique Discord account name (NOT the display name):
-        discord_name = interaction.user.name
-
-        # check if a Discord user already registered; if not,
-        # make a new entry; otherwise update the existing entry.
+    @app_commands.command(name="register_sub", description="Register yourself to sub for a specified player")
+    @app_commands.checks.has_role(PLAYER_ROLE)
+    @app_commands.describe(
+        sub_for="The discord user who you will be subbing for.",
+        friend_id="Find your friend ID in the Friends tab; this is separate from your username. Omit if you are already registred.")
+    async def register_sub(self, interaction: Interaction, sub_for: discord.Member, friend_id: Optional[int] = None):
+        await interaction.response.defer()
+        if str(sub_for.name) == str(interaction.user.name):
+            return await interaction.followup.send(content=f"\"{discord_name}\" cannot sub for themselves.")
         async with self.registry_lock:
-            found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
+            # first, find the discord name and affiliation of the user we're subbing for
+            # (ensuring they exist in the registry)
+            found_cell: gspread.cell.Cell = self.registry.find(str(sub_for.name), in_column=1)
             if found_cell is None:
-                self.registry.append_row([
-                    discord_name,
-                    mahjongsoul_nickname,
-                    friend_id,
-                    mahjongsoul_account_id,
-                    affiliation.value])
-                await interaction.followup.send(
-                    content=f"\"{discord_name}\" from {affiliation.value} has registered their Mahjong Soul account \"{mahjongsoul_nickname}\".")
+                return await interaction.followup.send(
+                    content=f"\"{sub_for}\" must first /register their Mahjong Soul account.")
             else:
-                cells = f"B{found_cell.row}:D{found_cell.row}" # A1 notation
-                self.registry.update(
-                    values=[[
-                        mahjongsoul_nickname,
-                        friend_id,
-                        mahjongsoul_account_id,
-                        affiliation.value]],
-                    range_name=cells)
-                await interaction.followup.send(
-                    content=f"\"{discord_name}\" from {affiliation.value} has updated their registry with Mahjong Soul account \"{mahjongsoul_nickname}\".")
-            
+                [_, _, _, _, sub_affiliation, *rest] = self.registry.row_values(found_cell.row)
+
+            # If friend_id is not passed in, we must be registered and we use our preexisting friend id
+            discord_name = interaction.user.name
+            if friend_id is None:
+                found_cell = self.registry.find(discord_name, in_column=1)
+                if found_cell is None:
+                    return await interaction.followup.send(
+                        content=f"\"{discord_name}\" has not registered, so you need to provide the friend_id in /register_sub.")
+                else:
+                    [_, _, friend_id, _, _, *rest] = self.registry.row_values(found_cell.row)
+
+        # now actually do the registration
+        try:
+            assert isinstance(interaction.user, discord.Member)
+            await self._register(interaction.user, friend_id, sub_affiliation, sub_for.name)
+            await interaction.followup.send(
+                content=f"\"{discord_name}\" has registered to sub for \"{sub_for.name}\" from {sub_affiliation}.")
+        except Exception as e:
+            await interaction.followup.send(content=str(e))
+
+    async def _unregister(self, player: discord.Member) -> str:
+        async with self.registry_lock:
+            found_cell: gspread.cell.Cell = self.registry.find(str(player.name), in_column=1)
+            if found_cell is None:
+                return f"\"{player.name}\" has not registered a Mahjong Soul account."
+            else:
+                [_, mahjongsoul_nickname, _, mahjongsoul_account_id, affiliation, *rest] = self.registry.row_values(found_cell.row)
+                self.registry.delete_row(found_cell.row)
+                if len(rest) > 0 and len(str(rest[0])) > 0:
+                    return f"Removed Mahjong Soul account \"{mahjongsoul_nickname}\" of \"{player.name}\" subbing for {affiliation} from the registry."
+                else:
+                    return f"Removed Mahjong Soul account \"{mahjongsoul_nickname}\" of \"{player.name}\" from {affiliation} from the registry."
+
     @app_commands.command(name="unregister", description="Remove your registered Mahjong Soul account from the registry.")
     @app_commands.checks.has_role(PLAYER_ROLE)
     async def unregister(self, interaction: Interaction):
+        assert isinstance(interaction.user, discord.Member)
         await interaction.response.defer()
+        response = await self._unregister(interaction.user)
+        await interaction.followup.send(content=response)
 
-        discord_name = interaction.user.name
-
-        async with self.registry_lock:
-            found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
-            if found_cell is None:
-                await interaction.followup.send(
-                    content=f"\"{discord_name}\" does not have a registered Mahjong Soul account.")
-            else:
-                [_, mahjongsoul_nickname, mahjongsoul_account_id, friend_code, affiliation] = self.registry.row_values(found_cell.row)
-                self.registry.delete_row(found_cell.row)
-                await interaction.followup.send(
-                    content=f"\"{discord_name}\" from {affiliation} has removed their account \"{mahjongsoul_nickname}\" from the registry.")
+    @app_commands.command(name="unregister_other", description=f"Unregister the given player. Only usable by {ADMIN_ROLE}.")
+    @app_commands.describe(player="The player you want to unregister.")
+    @app_commands.checks.has_role(ADMIN_ROLE)
+    async def unregister_other(self, interaction: Interaction, player: discord.Member):
+        await interaction.response.defer()
+        response = await self._unregister(player)
+        await interaction.followup.send(content=response)
 
     @app_commands.command(name="create_table", description="Create a table prompt where players self-assign seats before starting a game.")
     @app_commands.checks.has_role(PLAYER_ROLE)
@@ -216,8 +266,9 @@ class UvUManager(commands.Cog):
         TOTHINK: similarly, it's difficult to connect to listeners to check whether
         someone has hit "prepare for match" (or is `locked` according to MJS terms)
         """
-        view = TableView(look_up_player=self.look_up_player, start_game=self.manager.start_game, original_interaction=interaction)
-
+        view = TableView(look_up_player=self.look_up_player,
+                         start_game=self.manager.start_game,
+                         original_interaction=interaction)
         view.interactive_message = await interaction.response.send_message(
             content="Choose a seat!",
             embed=default_embed,
@@ -233,12 +284,16 @@ class UvUManager(commands.Cog):
     async def on_NotifyContestGameStart(self, _, msg):
         nicknames = " | ".join([p.nickname or "AI" for p in msg.game_info.players])
         await self.bot_channel.send(f"UvU game started! Players: {nicknames}.")
-    
+
     async def on_NotifyContestGameEnd(self, _, msg):
         # It takes some time for the results to register into the log
         await asyncio.sleep(3)
 
         record = await self.manager.locate_completed_game(msg.game_uuid)
+
+        # DEBUG
+        with open("logfile3.txt", "wb") as f:
+            f.write(record.SerializeToString())
 
         if record is None:
             await self.bot_channel.send("A game concluded without a record (possibly due to being terminated early).")
@@ -252,20 +307,37 @@ class UvUManager(commands.Cog):
         player_scores_rendered = ["Game concluded! Results:"] # to be newline-separated
         game_results_row = [] # a list of values for a "Game Results" row
         AI_count = 0
+        not_registered = [] # list of unregistered players in game, if any
+
         for p in record.result.players:
             player_account_id, player_nickname = player_seat_lookup.get(p.seat, (0, "AI"))
-            if player_account_id == 0:
-                AI_count += 1
             player_scores_rendered.append(
                 f"{player_nickname} ({p.part_point_1}) [{p.total_point/1000:+}]")
-            game_results_row.extend((
-                player_account_id,
-                p.total_point/1000))
-        
+
+            is_ai = player_account_id == 0
+            if is_ai:
+                AI_count += 1
+                game_results_row.extend(("AI", p.total_point/1000))
+            else:
+                # replace the id with the id of the person the player is subbing for, if any
+                async with self.registry_lock:
+                    found_cell: gspread.cell.Cell = self.registry.find(str(player_account_id), in_column=4)
+                    if found_cell is not None:
+                        [discord_name, _, _, _, _, *rest] = self.registry.row_values(found_cell.row)
+                        if len(rest) > 0: # we are subbing for someone
+                            discord_name = rest[0]
+                        game_results_row.extend((discord_name, p.total_point/1000))
+                    else: # The player was not registered?
+                        not_registered.append(player_nickname)
+                        game_results_row.extend(("Unregistered player", p.total_point/1000))
+
         if AI_count == 1:
             player_scores_rendered.append("An AI was in this game; remember to edit the score entry on Google Sheets with the respective substituted player's account ID.")
         elif AI_count > 1:
             player_scores_rendered.append(f"{AI_count} AIs were in this game; remember to edit the score entry on Google Sheets with {AI_count} respective substituted players' account ID.")
+
+        for player_nickname in not_registered:
+            player_scores_rendered.append(f"Error: Mahjong Soul player {player_nickname} was not registered for this game!")
 
         asyncio.create_task(self.bot_channel.send(
             content='\n'.join(player_scores_rendered)))
@@ -281,12 +353,24 @@ class UvUManager(commands.Cog):
     def look_up_player(self, discord_name: str) -> Player | None:
         found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
         if found_cell is not None:
-            values = self.registry.row_values(found_cell.row)
+            [_, mjs_nickname, _, mjs_account_id, affiliation, *rest] = self.registry.row_values(found_cell.row)
+            subbed_player_discord_name = None
+            subbed_player_mjs_name = None
+            if len(rest) > 0:
+                subbing_for = rest[0]
+                # find the name of the player being subbed for
+                found_cell = self.registry.find(str(subbing_for), in_column=4)
+                if found_cell is None: # possibly the subbed player unregistered; act like there is no sub
+                    pass
+                else:
+                    [subbed_player_discord_name, subbed_player_mjs_name, _, _, _, *rest] = self.registry.row_values(found_cell.row)
             return Player(
-                mjs_account_id=int(values[2]),
-                mjs_nickname=values[1],
+                mjs_account_id=int(mjs_account_id),
+                mjs_nickname=mjs_nickname,
                 discord_name=discord_name,
-                affiliation=values[3])
+                affiliation=affiliation,
+                subbing_for_discord_name=subbed_player_discord_name,
+                subbing_for_mjs_name=subbed_player_mjs_name)
         
         # No player with given Discord name found; returning None
         return None
