@@ -56,6 +56,7 @@ class UvUManager(commands.Cog):
         await self.manager.subscribe("NotifyContestGameStart", self.on_NotifyContestGameStart)
         await self.manager.subscribe("NotifyContestGameEnd", self.on_NotifyContestGameEnd)
 
+
     """
     =====================================================
     SLASH COMMANDS
@@ -144,12 +145,11 @@ class UvUManager(commands.Cog):
             mahjongsoul_account_id = res.search_result[0].account_id
 
             # Delete any existing registration
-            found_cell = self.registry.find(str(player.id), in_column=2)
+            found_cell = self.registry.find(str(player.name), in_column=1)
             cell_existed = found_cell is not None
             if cell_existed:
                 self.registry.delete_row(found_cell.row)
             data = [player.name,
-                    str(player.id),
                     mahjongsoul_nickname,
                     friend_id,
                     mahjongsoul_account_id,
@@ -192,13 +192,13 @@ class UvUManager(commands.Cog):
         await interaction.response.defer()
         async with self.registry_lock:
             # first, find the mahjong soul account id and affiliation of the user we're subbing for
-            found_cell: gspread.cell.Cell = self.registry.find(str(sub_for.id), in_column=2)
+            found_cell: gspread.cell.Cell = self.registry.find(str(sub_for.name), in_column=1)
             if found_cell is None:
                 return await interaction.followup.send(
                     content=f"\"{sub_for}\" must first /register their Mahjong Soul account.")
             else:
-                [sub_discord_name, sub_discord_id, _, _, sub_mahjongsoul_account_id, sub_affiliation, *rest] = self.registry.row_values(found_cell.row)
-                if str(sub_discord_id) == str(interaction.user.id):
+                [sub_discord_name, _, _, sub_mahjongsoul_account_id, sub_affiliation, *rest] = self.registry.row_values(found_cell.row)
+                if str(sub_discord_name) == str(interaction.user.name):
                     return await interaction.followup.send(
                         content=f"\"{sub_discord_name}\" cannot sub for themselves.")
 
@@ -210,7 +210,7 @@ class UvUManager(commands.Cog):
                     return await interaction.followup.send(
                         content=f"\"{discord_name}\" has not registered, so you need to provide the friend_id for /register_sub.")
             else:
-                [_, existing_discord_id, _, existing_friend_id, _, _, *rest] = self.registry.row_values(found_cell.row)
+                [_, _, existing_friend_id, _, _, *rest] = self.registry.row_values(found_cell.row)
                 if friend_id is None:
                     friend_id = existing_friend_id
 
@@ -225,11 +225,11 @@ class UvUManager(commands.Cog):
 
     async def _unregister(self, player: discord.Member) -> str:
         async with self.registry_lock:
-            found_cell: gspread.cell.Cell = self.registry.find(str(player.id), in_column=2)
+            found_cell: gspread.cell.Cell = self.registry.find(str(player.name), in_column=1)
             if found_cell is None:
                 return f"\"{player.name}\" has not registered a Mahjong Soul account."
             else:
-                [_, _, mahjongsoul_nickname, _, mahjongsoul_account_id, affiliation, *rest] = self.registry.row_values(found_cell.row)
+                [_, mahjongsoul_nickname, _, mahjongsoul_account_id, affiliation, *rest] = self.registry.row_values(found_cell.row)
                 self.registry.delete_row(found_cell.row)
                 if len(rest) > 0 and len(str(rest[0])) > 0:
                     return f"Removed Mahjong Soul account \"{mahjongsoul_nickname}\" of \"{player.name}\" subbing for {affiliation} from the registry."
@@ -284,12 +284,18 @@ class UvUManager(commands.Cog):
     async def on_NotifyContestGameStart(self, _, msg):
         nicknames = " | ".join([p.nickname or "AI" for p in msg.game_info.players])
         await self.bot_channel.send(f"UvU game started! Players: {nicknames}.")
-    
+
+        
+
     async def on_NotifyContestGameEnd(self, _, msg):
         # It takes some time for the results to register into the log
         await asyncio.sleep(3)
 
         record = await self.manager.locate_completed_game(msg.game_uuid)
+
+        # DEBUG
+        with open("logfile2.txt", "wb") as f:
+            f.write(record.SerializeToString())
 
         if record is None:
             await self.bot_channel.send("A game concluded without a record (possibly due to being terminated early).")
@@ -303,6 +309,7 @@ class UvUManager(commands.Cog):
         player_scores_rendered = ["Game concluded! Results:"] # to be newline-separated
         game_results_row = [] # a list of values for a "Game Results" row
         AI_count = 0
+
         for p in record.result.players:
             if not p.total_point:
                 # the object has no `total_point` if the player ends up
@@ -315,9 +322,9 @@ class UvUManager(commands.Cog):
                 f"{player_nickname} ({p.part_point_1}) [{p.total_point/1000:+}]")
             # replace the id with the id of the person the player is subbing for, if any
             async with self.registry_lock:
-                found_cell: gspread.cell.Cell = self.registry.find(player_account_id, in_column=5)
+                found_cell: gspread.cell.Cell = self.registry.find(str(player_account_id), in_column=4)
                 if found_cell is not None:
-                    [_, _, _, _, _, _, *rest] = self.registry.row_values(found_cell.row)
+                    [_, _, _, _, _, *rest] = self.registry.row_values(found_cell.row)
                     if len(rest) > 0:
                         player_account_id = rest[0]
             game_results_row.extend((
@@ -343,17 +350,17 @@ class UvUManager(commands.Cog):
     def look_up_player(self, discord_name: str) -> Player | None:
         found_cell: gspread.cell.Cell = self.registry.find(discord_name, in_column=1)
         if found_cell is not None:
-            [_, _, mjs_nickname, _, mjs_account_id, affiliation, *rest] = self.registry.row_values(found_cell.row)
+            [_, mjs_nickname, _, mjs_account_id, affiliation, *rest] = self.registry.row_values(found_cell.row)
             subbed_player_discord_name = None
             subbed_player_mjs_name = None
             if len(rest) > 0:
                 subbing_for = rest[0]
                 # find the name of the player being subbed for
-                found_cell = self.registry.find(subbing_for, in_column=4)
+                found_cell = self.registry.find(str(subbing_for), in_column=4)
                 if found_cell is None: # possibly the subbed player unregistered; act like there is no sub
                     pass
                 else:
-                    [subbed_player_discord_name, _, subbed_player_mjs_name, _, _, _, *rest] = self.registry.row_values(found_cell.row)
+                    [subbed_player_discord_name, subbed_player_mjs_name, _, _, _, *rest] = self.registry.row_values(found_cell.row)
             return Player(
                 mjs_account_id=int(mjs_account_id),
                 mjs_nickname=mjs_nickname,

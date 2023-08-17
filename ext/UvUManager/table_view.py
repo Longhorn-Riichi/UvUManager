@@ -1,9 +1,8 @@
-from typing import Callable
+from typing import *
 from discord import ui, ButtonStyle, Interaction, Embed
 import asyncio
 from modules.mahjongsoul.contest_manager import EAST, SOUTH, WEST, NORTH
 from modules.pymjsoul.channel import GeneralMajsoulError
-from typing import *
 import gspread
 
 # the wind indices for TableView.table
