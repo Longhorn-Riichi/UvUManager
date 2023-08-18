@@ -145,4 +145,4 @@ async def on_app_command_error(interaction: Interaction, error: app_commands.App
         raise error
 bot.tree.on_error = on_app_command_error
 
-bot.run(DISCORD_TOKEN)
+bot.run(DISCORD_TOKEN, log_handler=None)
