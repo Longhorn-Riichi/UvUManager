@@ -27,6 +27,7 @@ TEAM_2: str                   = assert_getenv("team_2")
 SPREADSHEET_ID: str           = assert_getenv("spreadsheet_id")
 MS_USERNAME: str              = assert_getenv("ms_username")
 MS_PASSWORD: str              = assert_getenv("ms_password")
+TOURNAMENT_NAME: str          = assert_getenv("tournament_name")
 
 class UvUManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -36,7 +37,7 @@ class UvUManager(commands.Cog):
             contest_unique_id=CONTEST_UNIQUE_ID,
             mjs_username=MS_USERNAME,
             mjs_password=MS_PASSWORD,
-            game_type="UvU")
+            game_type=TOURNAMENT_NAME)
 
         current_path = os.path.dirname(__file__)
         gs_client = gspread.service_account(
@@ -286,7 +287,7 @@ class UvUManager(commands.Cog):
 
     async def on_NotifyContestGameStart(self, _, msg):
         nicknames = " | ".join([p.nickname or "AI" for p in msg.game_info.players])
-        await self.bot_channel.send(f"UvU game started! Players: {nicknames}.")
+        await self.bot_channel.send(f"{TOURNAMENT_NAME} game started! Players: {nicknames}.")
 
     async def on_NotifyContestGameEnd(self, _, msg):
         # It takes some time for the results to register into the log

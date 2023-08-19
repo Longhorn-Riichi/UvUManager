@@ -3,7 +3,7 @@ import hashlib
 import logging
 import asyncio
 import datetime
-from typing import Optional
+from typing import *
 from os import getenv
 from modules.pymjsoul.channel import MajsoulChannel, GeneralMajsoulError
 from modules.pymjsoul.proto import liqi_combined_pb2
@@ -209,7 +209,7 @@ class ContestManager(MajsoulChannel):
 
         return f"{nickname}'s paused game has been unpaused."
 
-    async def start_game(self, account_ids: list[int]=[0, 0, 0, 0], random_position=False, open_live=True, ai_level=1) -> None:
+    async def start_game(self, account_ids: List[int]=[0, 0, 0, 0], tag: str="", random_position=False, open_live=True, ai_level=1) -> None:
         """
         start a tournament game. `account_ids` is a list of mahjong soul player
         ids, where 0 means adding a computer at the given seat.
@@ -232,7 +232,8 @@ class ContestManager(MajsoulChannel):
                 await self.call('lockGamePlayer', account_id=account_id)
         await self.call(
             methodName='createContestGame',
-            slots = playerList,
+            slots=playerList,
+            tag=tag,
             random_position=random_position,
             open_live=open_live,
             ai_level=ai_level)
