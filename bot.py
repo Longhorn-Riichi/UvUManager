@@ -11,7 +11,7 @@ import logging
 # the FileHandler by default appends to the given file
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s',
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     datefmt='%m-%d %H:%M:%S',
     handlers=[
         logging.FileHandler("log.txt"),
@@ -20,7 +20,6 @@ logging.basicConfig(
 )
 
 # load environmental variables
-env_path = join(dirname(__file__), "config.env")
 dotenv.load_dotenv("config.env")
 
 DISCORD_TOKEN = getenv("bot_token")
@@ -56,19 +55,19 @@ async def on_ready():
     logging.info(f"{bot.user} is now online.")
 
 # bot commands (non-slash; only for the admin/owner)
-@bot.command(name='sync_local', hidden=True)
+@bot.command(name='sync', hidden=True)
 @commands.is_owner()
-async def sync_local(ctx: commands.Context):
-    # note that global commands need to be explicitly copied...
+async def sync(ctx: commands.Context):
+    # note that global commands need to be explicitly copied to the guild
     bot.tree.copy_global_to(guild=ctx.guild)
     await bot.tree.sync(guild=ctx.guild)
-    await ctx.send(f"Synching command tree for this server ({ctx.guild.name}).")
+    await ctx.send(f"Synced command tree for this server ({ctx.guild.name}).")
 
-@bot.command(name='sync_global', hidden=True)
-@commands.is_owner()
-async def sync_global(ctx: commands.Context):
-    await bot.tree.sync()
-    await ctx.send(f"Synching command tree for ALL servers.")
+# @bot.command(name='sync_global', hidden=True)
+# @commands.is_owner()
+# async def sync_global(ctx: commands.Context):
+#     await bot.tree.sync()
+#     await ctx.send("Synced command tree for ALL servers.")
 
 @bot.command(name='shutdown', hidden=True)
 @commands.is_owner()

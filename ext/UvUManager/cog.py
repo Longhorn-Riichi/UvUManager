@@ -11,28 +11,32 @@ from modules.mahjongsoul.contest_manager import ContestManager
 from .table_view import TableView, Player, default_embed
 from typing import *
 
-EXTENSION_NAME = "UvUManager" # must be the same as class name...
-
 def assert_getenv(name: str) -> Any:
     value = getenv(name)
     assert value is not None, f"missing \"{name}\" in config.env"
     return value
 
-CONTEST_UNIQUE_ID: int     = int(assert_getenv("contest_unique_id"))
-CONTEST_TOURNAMENT_ID: str = assert_getenv("contest_tournament_id")
-GUILD_ID: int              = int(assert_getenv("guild_id"))
-BOT_CHANNEL_ID: int        = int(assert_getenv("bot_channel_id"))
-PLAYER_ROLE: str           = assert_getenv("player_role")
-ADMIN_ROLE: str            = assert_getenv("admin_role")
-TEAM_1: str                = assert_getenv("team_1")
-TEAM_2: str                = assert_getenv("team_2")
-SPREADSHEET_ID: str        = assert_getenv("spreadsheet_id")
+CONTEST_UNIQUE_ID: int        = int(assert_getenv("contest_unique_id"))
+CONTEST_TOURNAMENT_ID: str    = assert_getenv("contest_tournament_id")
+GUILD_ID: int                 = int(assert_getenv("guild_id"))
+BOT_CHANNEL_ID: int           = int(assert_getenv("bot_channel_id"))
+PLAYER_ROLE: str              = assert_getenv("player_role")
+ADMIN_ROLE: str               = assert_getenv("admin_role")
+TEAM_1: str                   = assert_getenv("team_1")
+TEAM_2: str                   = assert_getenv("team_2")
+SPREADSHEET_ID: str           = assert_getenv("spreadsheet_id")
+MS_USERNAME: str              = assert_getenv("ms_username")
+MS_PASSWORD: str              = assert_getenv("ms_password")
 
 class UvUManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.bot_channel = None # fetched in `self.async_setup()`
-        self.manager = ContestManager(CONTEST_UNIQUE_ID)
+        self.manager = ContestManager(
+            contest_unique_id=CONTEST_UNIQUE_ID,
+            mjs_username=MS_USERNAME,
+            mjs_password=MS_PASSWORD,
+            game_type="UvU")
 
         current_path = os.path.dirname(__file__)
         gs_client = gspread.service_account(
@@ -76,7 +80,7 @@ class UvUManager(commands.Cog):
                 "`/terminate_own_game`, `/pause_own_game`, `/unpause_own_game`"),
             ephemeral=True)
 
-    @app_commands.command(name="terminate_any_game", description=f"Terminate the game of the specified player. Only usable by {ADMIN_ROLE}.")
+    @app_commands.command(name="terminate_any_game", description=f"Terminate the game of the specified player. Only usable by @{ADMIN_ROLE}.")
     @app_commands.describe(nickname="Specify the nickname of a player that's in the game you want to terminate.")
     @app_commands.checks.has_role(ADMIN_ROLE)
     async def terminate_any_game(self, interaction: Interaction, nickname: str):
@@ -95,7 +99,7 @@ class UvUManager(commands.Cog):
         message = await self.manager.terminate_game(player.mjs_nickname)
         await interaction.followup.send(content=message)
     
-    @app_commands.command(name="pause_any_game", description=f"Pause the game of the specified player. Only usable by {ADMIN_ROLE}.")
+    @app_commands.command(name="pause_any_game", description=f"Pause the game of the specified player. Only usable by @{ADMIN_ROLE}.")
     @app_commands.describe(nickname="Specify the nickname of a player that's in the game you want to pause.")
     @app_commands.checks.has_role(ADMIN_ROLE)
     async def pause_any_game(self, interaction: Interaction, nickname: str):
@@ -114,7 +118,7 @@ class UvUManager(commands.Cog):
         message = await self.manager.pause_game(player.mjs_nickname)
         await interaction.followup.send(content=message)
     
-    @app_commands.command(name="unpause_any_game", description=f"Unpause the paused game of the specified player. Only usable by {ADMIN_ROLE}.")
+    @app_commands.command(name="unpause_any_game", description=f"Unpause the paused game of the specified player. Only usable by @{ADMIN_ROLE}.")
     @app_commands.describe(nickname="Specify the nickname of a player that's in the paused game you want to unpause.")
     @app_commands.checks.has_role(ADMIN_ROLE)
     async def unpause_any_game(self, interaction: Interaction, nickname: str):
@@ -135,18 +139,19 @@ class UvUManager(commands.Cog):
 
     async def _register(self, player: discord.Member, friend_id: int, affiliation: str, subbing_for: Optional[str] = None) -> str:
         """Add player to the registry, removing any existing registration first"""
-        async with self.registry_lock:
-            # Fetch friend details
-            res = await self.manager.call("searchAccountByEid", eids = [int(friend_id)])
-            # if no account found, then `res` won't have a `search_result` field, but it won't
-            # have an `error`` field, either (i.e., it's not an error!).
-            if not res.search_result:
-                raise Exception(f"Couldn't find Mahjong Soul account for this friend ID: {friend_id}")
-            mahjongsoul_nickname = res.search_result[0].nickname
-            mahjongsoul_account_id = res.search_result[0].account_id
+        
+        # Fetch Mahjong Soul details
+        res = await self.manager.call("searchAccountByEid", eids = [int(friend_id)])
+        # if no account found, then `res` won't have a `search_result` field, but it won't
+        # have an `error`` field, either (i.e., it's not an error!).
+        if not res.search_result:
+            raise Exception(f"Couldn't find Mahjong Soul account for this friend ID: {friend_id}")
+        mahjongsoul_nickname = res.search_result[0].nickname
+        mahjongsoul_account_id = res.search_result[0].account_id
 
+        async with self.registry_lock:
             # Delete any existing registration
-            found_cell = self.registry.find(str(player.name), in_column=1)
+            found_cell = self.registry.find(player.name, in_column=1)
             cell_existed = found_cell is not None
             if cell_existed:
                 self.registry.delete_row(found_cell.row)
@@ -163,19 +168,17 @@ class UvUManager(commands.Cog):
             else:
                 return f"Registered \"{player.name}\" from {affiliation} with Mahjong Soul account \"{mahjongsoul_nickname}\"."
 
-    @app_commands.command(name="register", description="Register yourself with your Mahjong Soul friend ID, or update your existing registry.")
+    @app_commands.command(name="register", description="Register yourself with your Mahjong Soul friend ID, or update your existing registration.")
     @app_commands.checks.has_role(PLAYER_ROLE)
     @app_commands.choices(affiliation=[
         app_commands.Choice(name=TEAM_1, value=TEAM_1),
-        app_commands.Choice(name=TEAM_2, value=TEAM_2)
-    ])
+        app_commands.Choice(name=TEAM_2, value=TEAM_2)])
     @app_commands.describe(
         friend_id="Find your friend ID in the Friends tab; this is separate from your username.",
         affiliation=f"Which club do you represent: {TEAM_1}? {TEAM_2}?")
     async def register(self, interaction: Interaction, friend_id: int, affiliation: app_commands.Choice[str]):
         """
-        here we use Mahjong Soul ID as the unique identifier, since the
-        tournament will be held over Mahjong Soul anyway.
+        here we use Discord ID as the unique identifier
         """
         await interaction.response.defer()
         assert isinstance(interaction.user, discord.Member)
@@ -198,7 +201,7 @@ class UvUManager(commands.Cog):
         async with self.registry_lock:
             # first, find the discord name and affiliation of the user we're subbing for
             # (ensuring they exist in the registry)
-            found_cell: gspread.cell.Cell = self.registry.find(str(sub_for.name), in_column=1)
+            found_cell: gspread.cell.Cell = self.registry.find(sub_for.name, in_column=1)
             if found_cell is None:
                 return await interaction.followup.send(
                     content=f"\"{sub_for}\" must first /register their Mahjong Soul account.")
@@ -225,11 +228,11 @@ class UvUManager(commands.Cog):
 
     async def _unregister(self, player: discord.Member) -> str:
         async with self.registry_lock:
-            found_cell: gspread.cell.Cell = self.registry.find(str(player.name), in_column=1)
+            found_cell: gspread.cell.Cell = self.registry.find(player.name, in_column=1)
             if found_cell is None:
                 return f"\"{player.name}\" has not registered a Mahjong Soul account."
             else:
-                [_, mahjongsoul_nickname, _, mahjongsoul_account_id, affiliation, *rest] = self.registry.row_values(found_cell.row)
+                [_, mahjongsoul_nickname, _, _, affiliation, *rest] = self.registry.row_values(found_cell.row)
                 self.registry.delete_row(found_cell.row)
                 if len(rest) > 0 and len(str(rest[0])) > 0:
                     return f"Removed Mahjong Soul account \"{mahjongsoul_nickname}\" of \"{player.name}\" subbing for {affiliation} from the registry."
@@ -244,7 +247,7 @@ class UvUManager(commands.Cog):
         response = await self._unregister(interaction.user)
         await interaction.followup.send(content=response)
 
-    @app_commands.command(name="unregister_other", description=f"Unregister the given player. Only usable by {ADMIN_ROLE}.")
+    @app_commands.command(name="unregister_other", description=f"Unregister the given player. Only usable by @{ADMIN_ROLE}.")
     @app_commands.describe(player="The player you want to unregister.")
     @app_commands.checks.has_role(ADMIN_ROLE)
     async def unregister_other(self, interaction: Interaction, player: discord.Member):
@@ -295,37 +298,39 @@ class UvUManager(commands.Cog):
             await self.bot_channel.send("A game concluded without a record (possibly due to being terminated early).")
             return
 
-        # TODO: just do player look up so affiliation can be included as well
         # TODO: deal with ordering the scores; currently assumes the scores are ordered by
         #       total_point (this algorithm can be shared with manual score entering)
-        player_seat_lookup = {a.seat: (a.account_id, a.nickname) for a in record.accounts}
+        seat_player_dict = {a.seat: (a.account_id, a.nickname) for a in record.accounts}
 
         player_scores_rendered = ["Game concluded! Results:"] # to be newline-separated
         game_results_row = [] # a list of values for a "Game Results" row
-        AI_count = 0
+        AI_count = 0 # how many AIs were in the game, based on the lack of a "seat" for the AI
         not_registered = [] # list of unregistered players in game, if any
 
         for p in record.result.players:
-            player_account_id, player_nickname = player_seat_lookup.get(p.seat, (0, "AI"))
-            player_scores_rendered.append(
-                f"{player_nickname} ({p.part_point_1}) [{p.total_point/1000:+}]")
+            player_account_id, player_nickname = seat_player_dict.get(p.seat, (0, "AI"))
+            affiliation = "Unregistered" # for AI and (somehow) unregistered players
+            final_score = p.total_point/1000
 
             is_ai = player_account_id == 0
             if is_ai:
                 AI_count += 1
-                game_results_row.extend(("AI", p.total_point/1000))
+                game_results_row.extend(("AI", final_score))
             else:
                 # replace the id with the id of the person the player is subbing for, if any
                 async with self.registry_lock:
                     found_cell: gspread.cell.Cell = self.registry.find(str(player_account_id), in_column=4)
                     if found_cell is not None:
-                        [discord_name, _, _, _, _, *rest] = self.registry.row_values(found_cell.row)
+                        [discord_name, _, _, _, affiliation, *rest] = self.registry.row_values(found_cell.row)
                         if len(rest) > 0: # we are subbing for someone
                             discord_name = rest[0]
-                        game_results_row.extend((discord_name, p.total_point/1000))
+                        game_results_row.extend((discord_name, final_score))
                     else: # The player was not registered?
                         not_registered.append(player_nickname)
-                        game_results_row.extend(("Unregistered player", p.total_point/1000))
+                        game_results_row.extend(("Unregistered player", final_score))
+            
+            player_scores_rendered.append(
+                f"{player_nickname} [{affiliation}]: {p.part_point_1} ({final_score:+})")
 
         if AI_count == 1:
             player_scores_rendered.append("An AI was in this game; remember to edit the score entry on Google Sheets with the respective substituted player's account ID.")
@@ -333,7 +338,7 @@ class UvUManager(commands.Cog):
             player_scores_rendered.append(f"{AI_count} AIs were in this game; remember to edit the score entry on Google Sheets with {AI_count} respective substituted players' account ID.")
 
         for player_nickname in not_registered:
-            player_scores_rendered.append(f"Error: Mahjong Soul player {player_nickname} was not registered for this game!")
+            player_scores_rendered.append(f"WARNING: Mahjong Soul player {player_nickname} is not registered!")
 
         asyncio.create_task(self.bot_channel.send(
             content='\n'.join(player_scores_rendered)))
@@ -372,13 +377,13 @@ class UvUManager(commands.Cog):
         return None
 
 async def setup(bot: commands.Bot):
+    logging.info(f"Loading extension `{UvUManager.__name__}`...")
     instance = UvUManager(bot)
     asyncio.create_task(instance.async_setup())
     await bot.add_cog(instance, guild=discord.Object(id=GUILD_ID))
-    logging.info(f"Extension `{EXTENSION_NAME}` is being loaded")
 
 # `teardown()` currently doesn't get called for some reason...
 # async def teardown(bot: commands.Bot):
-#     instance: UvUManager = bot.get_cog(EXTENSION_NAME)
+#     instance: UvUManager = bot.get_cog(UvUManager.__name__)
 #     await instance.manager.close()
-#     logging.info(f"Extension `{EXTENSION_NAME}` is being unloaded")
+#     logging.info(f"Extension `{UvUManager.__name__}` has been unloaded")
