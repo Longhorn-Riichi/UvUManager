@@ -28,7 +28,7 @@ First, `cp config.template.env config.env`.
         pipenv install
         pipenv shell
         ./start.sh
-1. in the relevant Discord server: run `$sync_local` to sync the slash commands for that server.
+1. in the relevant Discord server: run `$sync` to sync the slash commands for that server.
 
 ## Automated Features
 1. pings the server every 4 hours to see if a reconnection is necessary.
