@@ -1,18 +1,14 @@
 import hmac
 import hashlib
-import logging
 import asyncio
 import datetime
-from typing import Optional
-from os import getenv
+from typing import *
 from modules.pymjsoul.channel import MajsoulChannel, GeneralMajsoulError
 from modules.pymjsoul.proto import liqi_combined_pb2
-from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+from websockets.exceptions import ConnectionClosed, ConnectionClosedError, InvalidStatusCode
 
 # MS_MANAGER_WSS_ENDPOINT: `__MJ_DHS_WS__` from https://www.maj-soul.com/dhs/js/config.js
-MS_MANAGER_WSS_ENDPOINT = "wss://gateway-v2.maj-soul.com/contest_ws_gateway"
-MS_USERNAME = getenv("ms_username")
-MS_PASSWORD = getenv("ms_password")
+MS_MANAGER_WSS_ENDPOINT = "wss://common-v2.maj-soul.com/contest_ws_gateway"
 EAST = 0
 SOUTH = 1
 WEST = 2
@@ -22,10 +18,12 @@ class ContestManager(MajsoulChannel):
     """
     wraps around the `MajsoulChannel` class to provide additional functionalities for managing ONE specific contest on Discord
     """
-    def __init__(self, contest_unique_id, log_messages=False):
+    def __init__(self, contest_unique_id: int, mjs_username: str, mjs_password: str, log_messages=False, logger_name="Contest Manager"):
         self.contest_unique_id = contest_unique_id
+        self.mjs_username = mjs_username
+        self.mjs_password = mjs_password
         self.contest = None # contest info; `CustomizedContest` protobuf
-        super().__init__(proto=liqi_combined_pb2, log_messages=log_messages)
+        super().__init__(proto=liqi_combined_pb2, log_messages=log_messages, logger_name=logger_name)
         self.huge_ping_task: Optional[asyncio.Task] = None
     
     async def login_and_start_listening(self):
@@ -38,16 +36,16 @@ class ContestManager(MajsoulChannel):
         """
         await super().call(
             methodName = "loginContestManager",
-            account = MS_USERNAME,
-            password = hmac.new(b"lailai", MS_PASSWORD.encode(), hashlib.sha256).hexdigest(),
+            account = self.mjs_username,
+            password = hmac.new(b"lailai", self.mjs_password.encode(), hashlib.sha256).hexdigest(),
             type = 0)
-        logging.info(f"`loginContestManager` with {MS_USERNAME} successful!")
+        self.logger.info(f"`loginContestManager` with {self.mjs_username} successful!")
 
         res = await super().call(
             methodName = 'manageContest',
             unique_id = self.contest_unique_id)
         self.contest = res.contest
-        logging.info(f"`manageContest` for {self.contest.contest_name} successful!")
+        self.logger.info(f"`manageContest` for {self.contest.contest_name} successful!")
 
         self.huge_ping_task = asyncio.create_task(self.huge_ping())
 
@@ -55,7 +53,7 @@ class ContestManager(MajsoulChannel):
         # like `NotifyContestGameStart` and `NotifyContestGameEnd`
         await super().call(methodName = 'startManageGame')
         
-        logging.info(f"`startManageGame` successful!")
+        self.logger.info(f"`startManageGame` successful!")
     
     async def huge_ping(self, huge_ping_interval=14400):
         """
@@ -71,24 +69,27 @@ class ContestManager(MajsoulChannel):
                     await self.call(
                         "updateContestGameRule",
                         finish_time = int(ninety_days_later.timestamp()))
-                    logging.info(f"huge_ping'd.")
+                    self.logger.info(f"huge_ping'd.")
                 except GeneralMajsoulError:
                     # ignore mahjong soul errors not caught in wrapped `call()`
                     pass
                 
                 await asyncio.sleep(huge_ping_interval)
         except asyncio.CancelledError:
-            logging.info("`huge_ping` task cancelled")
+            self.logger.info("`huge_ping` task cancelled")
 
     async def connect_and_login(self):
         """
-        Connect to the Chinese tournament manager server, login with username and password environment variables, start managing the specified contest, and start receiving the notifications for the games in that contest.
-        Caller is responsible for catching errors and acting on them.
+        Connect to the Chinese tournament manager server, login with username and password, start managing the specified contest, and start receiving the notifications for the games in that contest.
         """
-        # Establish WSS connection
-        await self.connect(MS_MANAGER_WSS_ENDPOINT)
-        # Login, manage specific contest, and start listening to notifications
-        await self.login_and_start_listening()
+        try:
+            # Establish WSS connection
+            await self.connect(MS_MANAGER_WSS_ENDPOINT)
+            # Login, manage specific contest, and start listening to notifications
+            await self.login_and_start_listening()
+        except InvalidStatusCode as e:
+            self.logger.error("Failed to login for CustomizedContestManagerApi. Is Mahjong Soul currently undergoing maintenance?")
+            raise e
     
     async def reconnect_and_login(self):
         """
@@ -116,7 +117,7 @@ class ContestManager(MajsoulChannel):
                 the account may have been logged out elsewhere unintentionally,
                 e.g., from the web version of the tournament manager)
                 """
-                logging.info("Received `ERR_CONTEST_MGR_NOT_LOGIN`; now trying to log in again and resend the previous request.")
+                self.logger.info("Received `ERR_CONTEST_MGR_NOT_LOGIN`; now trying to log in again and resend the previous request.")
                 await self.reconnect_and_login()
                 return await super().call(methodName, **msgFields)
             else:
@@ -128,7 +129,7 @@ class ContestManager(MajsoulChannel):
             similar to above; try logging back in once and retrying the call.
             Do nothing if the retry still failed.
             """
-            logging.info("ConnectionClosed[Error]; now trying to log in again and resend the previous request.")
+            self.logger.info("ConnectionClosed[Error]; now trying to log in again and resend the previous request.")
             await self.reconnect_and_login()
             return await super().call(methodName, **msgFields)
 
@@ -141,17 +142,6 @@ class ContestManager(MajsoulChannel):
             for player in game.players:
                 if player.nickname == nickname:
                     return game.game_uuid
-    
-    # TODO: login to Lobby to directly do `fetchGameRecord`?
-    async def locate_completed_game(self, game_uuid: int):
-        """
-        locate and return a completed game's record
-        """
-        res = await self.call('fetchContestGameRecords')
-        for item in res.record_list:
-            if item.record.uuid == game_uuid:
-                return item.record
-        return None
     
     async def terminate_game(self, nickname: str) -> str:
         """
@@ -206,7 +196,7 @@ class ContestManager(MajsoulChannel):
 
         return f"{nickname}'s paused game has been unpaused."
 
-    async def start_game(self, account_ids: list[int]=[0, 0, 0, 0], random_position=False, open_live=True, ai_level=1) -> None:
+    async def start_game(self, account_ids: List[int]=[0, 0, 0, 0], tag: str="", random_position=False, open_live=True, ai_level=1, starting_points=None) -> None:
         """
         start a tournament game. `account_ids` is a list of mahjong soul player
         ids, where 0 means adding a computer at the given seat.
@@ -223,13 +213,15 @@ class ContestManager(MajsoulChannel):
             account_id = account_ids[i]
             playerList.append(self.proto.ReqCreateContestGame.Slot(
                 account_id=account_id,
+                start_point=starting_points,
                 seat=i))
             # if it's a real player, call `lockGamePlayer`
             if account_id > 0:
                 await self.call('lockGamePlayer', account_id=account_id)
         await self.call(
             methodName='createContestGame',
-            slots = playerList,
+            slots=playerList,
+            tag=tag,
             random_position=random_position,
             open_live=open_live,
             ai_level=ai_level)

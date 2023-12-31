@@ -32,15 +32,16 @@ class GeneralMajsoulError(Exception):
 class MajsoulChannel():
     _RESPONSE_TIMEOUT_DURATION = 10
 
-    def __init__(self, proto, log_messages=True):
+    def __init__(self, proto, log_messages=True, logger_name="MajsoulChannel"):
+        self.logger = logging.getLogger(logger_name)
+        
+        self.index = 0 # should be referenced while holding the lock
         self.websocket = None
         self.websocket_lock = asyncio.Lock()
 
         self.uri = None
 
         self.proto = proto
-
-        self.index = 0
         self.requests = {}
         self.responses = {}
 
@@ -48,7 +49,6 @@ class MajsoulChannel():
         self._subscriptions_lock = asyncio.Lock()
 
         self.MostRecentNotify = None
-        self.Notifications = asyncio.Queue()
         self.log_messages = log_messages
 
         self.sustain_task: Optional[asyncio.Task] = None
@@ -85,9 +85,10 @@ class MajsoulChannel():
     async def connect(self, uri):
         self.uri = uri
 
+        self.Notifications = asyncio.Queue()
         self.websocket = await websockets.connect(self.uri)
 
-        logging.info(f'Connected to {self.uri}')
+        self.logger.info(f'Connected to {self.uri}')
 
         self.sustain_task = asyncio.create_task(self.sustain())
         self.listen_task = asyncio.create_task(self.listen())
@@ -102,7 +103,9 @@ class MajsoulChannel():
                 await self.websocket.ping()
                 await asyncio.sleep(ping_interval)
         except asyncio.CancelledError:
-            logging.info("`sustain` task cancelled")
+            self.logger.info("`sustain` task cancelled")
+        except Exception as e:
+            self.logger.info(f"Exception occurred in `sustain` task: {e}")
 
     async def subscribe(self, name, cb):
         async with self._subscriptions_lock:
@@ -122,7 +125,9 @@ class MajsoulChannel():
                 else:
                     logging.debug(f"Notification for {name} had no subscribers.")
         except asyncio.CancelledError:
-            logging.info("`eventloop` task cancelled")
+            self.logger.info("`eventloop` task cancelled")
+        except Exception as e:
+            self.logger.info(f"Exception occurred in `eventloop` task: {e}")
 
     async def listen(self):
         '''
@@ -153,13 +158,13 @@ class MajsoulChannel():
                     # Never process the same message twice.
                     if (name, msg) != self.MostRecentNotify:
                         if self.log_messages:
-                            logging.info("Notification received.\nname\nmsg")
+                            self.logger.info("Notification received.\nname\nmsg")
                         self.MostRecentNotify = (name, msg)
 
                         await self.Notifications.put((name, msg))
                 elif msgType == MSG_TYPE_RESPONSE:
                     if self.log_messages:
-                        logging.info("Response received.")
+                        self.logger.info("Response received.")
                     msgIndex = int.from_bytes(message[1:3], 'little')
                     msgPayload = message[3:]
 
@@ -170,7 +175,9 @@ class MajsoulChannel():
                         resEvent = self.requests[msgIndex]
                         resEvent.set()
         except asyncio.CancelledError:
-            logging.info("`listen` task cancelled")
+            self.logger.info("`listen` task cancelled")
+        except Exception as e:
+            self.logger.info(f"Exception occurred in `listen` task: {e}")
 
     async def close(self):
         await self.websocket.close()
@@ -209,16 +216,14 @@ class MajsoulChannel():
                     |_______|_______ _______
         '''
 
-        msgIndex = self.index
-        self.index = (self.index + 1) % MAX_MSG_INDEX
-
         wrapped = self.wrap(name, data)
-        message = MSG_TYPE_REQUEST.to_bytes(1, 'little') + msgIndex.to_bytes(2, 'little') + wrapped
-
-        resEvent = asyncio.Event()
-        self.requests[msgIndex] = resEvent
-
         async with self.websocket_lock:
+            msgIndex = self.index
+            self.index = (self.index + 1) % MAX_MSG_INDEX
+            message = MSG_TYPE_REQUEST.to_bytes(1, 'little') + msgIndex.to_bytes(2, 'little') + wrapped
+
+            resEvent = asyncio.Event()
+            self.requests[msgIndex] = resEvent
             await self.websocket.send(message)
 
             try:
@@ -254,7 +259,6 @@ class MajsoulChannel():
                 reconnect = True
             )
         '''
-
         # Optional method hack
         serviceName = None
         if 'serviceName' in msgFields:
@@ -278,7 +282,7 @@ class MajsoulChannel():
             raise GeneralMajsoulError(resMessage.error.code, ERRORS.get(resMessage.error.code, 'Unknown error'))
 
         if self.log_messages:
-            logging.info(resMessage)
+            self.logger.info(resMessage)
 
         return resMessage
 
@@ -314,6 +318,7 @@ class MajsoulChannel():
         msg.ParseFromString(wrapped)
 
         return msg.name, msg.data
+
 
 async def main():
     import proto.liqi_combined_pb2 as liqi_combined_proto

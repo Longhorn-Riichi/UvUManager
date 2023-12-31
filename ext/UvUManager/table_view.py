@@ -1,9 +1,9 @@
 from typing import *
+from os import getenv
 from discord import ui, ButtonStyle, Interaction, Embed
 import asyncio
 from modules.mahjongsoul.contest_manager import EAST, SOUTH, WEST, NORTH
 from modules.pymjsoul.channel import GeneralMajsoulError
-import gspread
 
 # the wind indices for TableView.table
 button_labels = ["E", "S", "W", "N"]
@@ -14,6 +14,7 @@ default_embed = Embed(description=(
     "West: None\n"
     "North: None"
 ))
+TOURNAMENT_NAME: str = getenv("tournament_name")
 
 class Player:
     def __init__(self, mjs_account_id: int=0,
@@ -51,7 +52,7 @@ class TableView(ui.View):
     team starts East compared with their previous game.
     """
     def __init__(self, look_up_player: Callable[[Optional[str]], Player],
-                       start_game: Callable[[int, int, int, int], None],
+                       start_game: Callable[[List[int], str, bool, bool, int], None],
                        original_interaction: Interaction,
                        timeout: float=300):
         super().__init__(timeout=timeout)
@@ -90,7 +91,7 @@ class TableView(ui.View):
                 child.disabled = disabled
                 break
     
-    def get_up_if_possible(self, discord_name: str) -> Player | None:
+    def get_up_if_possible(self, discord_name: str) -> Optional[Player]:
         """
         returns the Player object if got up successfully,
         otherwise None (the player wasn't sitting before)
@@ -244,11 +245,13 @@ class TableView(ui.View):
 
             # try to start the game. Tell everyone to prepare for match if failed.
             try:
-                await self.start_game([
-                    east_player.mjs_account_id,
-                    south_player.mjs_account_id,
-                    west_player.mjs_account_id,
-                    north_player.mjs_account_id])
+                await self.start_game(
+                    account_ids=[
+                        east_player.mjs_account_id,
+                        south_player.mjs_account_id,
+                        west_player.mjs_account_id,
+                        north_player.mjs_account_id],
+                    tag=TOURNAMENT_NAME)
             except GeneralMajsoulError as error:
                 if error.errorCode == 2509:
                     await interaction.followup.send(content=f"Failed to start a game. Did everyone hit `Prepare for match` on Mahjong Soul?")
@@ -333,11 +336,13 @@ class TableView(ui.View):
 
             # try to start the game. Tell humans to prepare for match if failed.
             try:
-                await self.start_game(account_ids=[
-                    east_player.mjs_account_id,
-                    south_player.mjs_account_id,
-                    west_player.mjs_account_id,
-                    north_player.mjs_account_id])
+                await self.start_game(
+                    account_ids=[
+                        east_player.mjs_account_id,
+                        south_player.mjs_account_id,
+                        west_player.mjs_account_id,
+                        north_player.mjs_account_id],
+                    tag=TOURNAMENT_NAME)
             except GeneralMajsoulError as error:
                 if error.errorCode == 2509:
                     await interaction.followup.send(content=f"Failed to start a game. Did every human hit `Prepare for match` on Mahjong Soul?")
